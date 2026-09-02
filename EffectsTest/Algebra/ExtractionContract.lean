@@ -2,22 +2,22 @@
 Contract packet: `test/contracts/algebra-extraction.contract.md`
 
 Breaker-owned red battery. The implementation phase must not edit this file.
-It is red until the Effect4 algebra modules and frozen declarations exist.
+It is red until the Effects algebra modules and frozen declarations exist.
 -/
 
-import Effect4.Algebra.Signature
-import Effect4.Algebra.Program
-import Effect4.Algebra.Handler
-import Effect4.Algebra.Laws
-import Effect4.Algebra.MonadLaws
-import Effect4.Algebra.Sum
-import Effect4.Algebra.Universal
-import Effect4.Algebra.Handler.Composition
-import Effect4.Algebra.Handler.Category
+import Effects.Algebra.Signature
+import Effects.Algebra.Program
+import Effects.Algebra.Handler
+import Effects.Algebra.Laws
+import Effects.Algebra.MonadLaws
+import Effects.Algebra.Sum
+import Effects.Algebra.Universal
+import Effects.Algebra.Handler.Composition
+import Effects.Algebra.Handler.Category
 
-namespace Effect4Test.Algebra.ExtractionContract
+namespace EffectsTest.Algebra.ExtractionContract
 
-open Effect4
+open Effects
 
 universe uOp uAns uS uT uU v
 
@@ -591,4 +591,4 @@ error: Application type mismatch
 #guard_msgs(error, substring := true) in
 #check (Program SmallSignature Type)
 
-end Effect4Test.Algebra.ExtractionContract
+end EffectsTest.Algebra.ExtractionContract

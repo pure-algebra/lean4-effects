@@ -2,16 +2,16 @@
 Contract packet: `test/contracts/algebra-retained-closure.contract.md`
 
 Breaker-owned red battery. The implementation phase must not edit this file.
-It is red until every retained algebra declaration has a native Effect4 API.
+It is red until every retained algebra declaration has a native Effects API.
 -/
 
-import Effect4.Algebra.Laws
-import Effect4.Algebra.Sum
-import Effect4.Algebra.Universal
+import Effects.Algebra.Laws
+import Effects.Algebra.Sum
+import Effects.Algebra.Universal
 
-namespace Effect4Test.Algebra.RetainedClosureContract
+namespace EffectsTest.Algebra.RetainedClosureContract
 
-open Effect4
+open Effects
 
 universe uS uT uAns v
 
@@ -211,4 +211,4 @@ section InjectionClosure
 
 end InjectionClosure
 
-end Effect4Test.Algebra.RetainedClosureContract
+end EffectsTest.Algebra.RetainedClosureContract

@@ -1,5 +1,12 @@
 # Retained algebra closure contract
 
+> Moved from lean4-effect4 at `217d3e4` in slice S3 of the split, 2026-09-02.
+> Here the implementation fence is `Effects/Algebra/**` and the battery is
+> `EffectsTest/Algebra/RetainedClosureContract.lean`; both are green. The `Effect4/...` and
+> `Effect4Test/...` spellings in the body below are the packet's original
+> text and are retained as provenance, not as live paths. The Foldlab source
+> rows remain evidence inputs only; `Effects` does not import Foldlab.
+
 Status: FROZEN / RED, breaker-authored 2026-08-31
 
 Implementation fence: `Effect4/Algebra/**`

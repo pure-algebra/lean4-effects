@@ -7,10 +7,3 @@
 # fails the gate, so an entry cannot outlive the red phase it describes.
 #
 # Removing the last entry restores the original all-green control.
-
-# Slice S2 of the split: the three algebra batteries arrived with the move
-# and still open the `Effect4` namespace. Slice S3 repoints them to `Effects`
-# and removes these entries.
-EffectsTest.Algebra.ExtractionContract
-EffectsTest.Algebra.RetainedClosureContract
-EffectsTest.Algebra.AxiomReport

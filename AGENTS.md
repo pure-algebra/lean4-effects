@@ -8,12 +8,13 @@ full, then open only the documents named for the current task.
 | Path | Owns |
 | --- | --- |
 | `docs/CLAIM-BOUNDARY.md` | what the library claims and does not claim |
-| `docs/DESIGN-BASIS.md` | the adopted carrier and universe policy (lands in S3) |
-| `test/contracts/` | breaker-authored contracts and executable falsifiers (lands in S3) |
-| `test/counterexamples/` | the counterexample register and durable witnesses (lands in S3) |
+| `docs/DESIGN-BASIS.md` | the adopted carrier and universe policy |
+| `test/contracts/` | breaker-authored contracts and executable falsifiers |
+| `test/counterexamples/` | the counterexample register and durable witnesses |
+| `docs/ALGEBRA-DAG.md` | the proof graph of the nine algebra modules |
+| `generated/` | the parity receipt against the lean4-effect4 source commit |
 | `Effects/` | library declarations and proofs |
 | `EffectsTest/` | Lean tests, attacks, and proof receipts |
-| `generated/` | deterministic projections only; never hand-edited |
 
 If two files appear to own the same fact, stop and repair the ownership map.
 Until slice S4 of the split lands, `docs/EFFECTS-SPLIT-PLAN.md` in

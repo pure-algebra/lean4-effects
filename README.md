@@ -11,13 +11,18 @@ reifications (WHATWG Streams first) build against it, and
 TypeScript reification, depends on it and later imports those standard
 instances. Nothing depends in the other direction.
 
-Current state: **slice S2 of the split.** The nine algebra modules are here
-under `Effects/Algebra/` with their lean4-effect4 history, renamed into the
-`Effects` namespace and nothing else; `generated/algebra-parity.tsv` is the
-byte-identical receipt against the source commit. The three batteries moved
-with them and are declared red until slice S3 repoints them. The plan, its
-rulings, and its exit gates are `docs/EFFECTS-SPLIT-PLAN.md` in
-lean4-effect4.
+Current state: **v0.1.0, the algebra with its evidence.** The nine modules
+under `Effects/Algebra/` carry their lean4-effect4 history; the only edits
+since the move are the namespace lines, and `generated/algebra-parity.tsv` is
+the byte-identical receipt of all 215 compiled constants against the source
+commit. The two contract packets, the eight-row counterexample register with
+local executable witnesses, the design basis, the claim boundary, and the
+proof graph are in `test/` and `docs/`. The split plan, its rulings, and its
+exit gates are `docs/EFFECTS-SPLIT-PLAN.md` in lean4-effect4.
+
+Sixty named theorems have axiom receipts in
+`EffectsTest/Algebra/AxiomReport.lean`; the union is `propext` and
+`Quot.sound`.
 
 ## Build and gates
 

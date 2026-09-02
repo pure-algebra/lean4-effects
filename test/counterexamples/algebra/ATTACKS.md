@@ -1,5 +1,7 @@
 # Generic algebra attacks
 
+> Moved from lean4-effect4 at `217d3e4` in slice S3 of the split, 2026-09-02. The Lean battery named below is `EffectsTest/Algebra/ExtractionContract.lean`; the four Foldlab-pinned attacks now also have local executable witnesses under `EffectsTest/Counterexamples/Algebra/`, listed in `test/counterexamples/REGISTER.md`.
+
 Packet: `test/contracts/algebra-extraction.contract.md`
 
 These attacks are durable regression inputs, not scratch alternatives. The
