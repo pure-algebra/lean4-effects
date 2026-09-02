@@ -1,0 +1,21 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: leanprover/lean-action@v1
+        with:
+          auto-config: false
+      - name: Build production library
+        run: lake build Effects
+      - name: Build the test battery and run the axiom gate
+        run: lake build
+      - name: Self-test the trust gate
+        run: ./scripts/test-trust-gate.sh

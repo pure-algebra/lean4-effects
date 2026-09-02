@@ -1,0 +1,9 @@
+# Modules that are INTENTIONALLY red, one Lake target per line.
+#
+# The breaker/builder discipline in AGENTS.md has a phase in which a frozen
+# red battery exists and its implementation does not. This file makes that
+# phase explicit. It is self-checking in both directions: an undeclared
+# failure fails the gate, and a declared module that is actually GREEN also
+# fails the gate, so an entry cannot outlive the red phase it describes.
+#
+# Removing the last entry restores the original all-green control.

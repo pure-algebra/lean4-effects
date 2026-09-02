@@ -1,0 +1,13 @@
+name = "effects"
+version = "0.1.0"
+defaultTargets = ["Effects", "EffectsTest"]
+
+# S1: only the root module exists. S2 widens this to ["Effects.*"] when the
+# algebra modules land under Effects/Algebra/.
+[[lean_lib]]
+name = "Effects"
+globs = ["Effects"]
+
+[[lean_lib]]
+name = "EffectsTest"
+globs = ["EffectsTest.*"]

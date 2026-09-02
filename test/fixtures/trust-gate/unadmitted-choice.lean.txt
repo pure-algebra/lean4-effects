@@ -1,0 +1,6 @@
+namespace Effects
+
+noncomputable def plantedUnadmittedChoice : Nat :=
+  Classical.choice (inferInstance : Nonempty Nat)
+
+end Effects
