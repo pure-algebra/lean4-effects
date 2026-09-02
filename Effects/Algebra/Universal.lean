@@ -1,10 +1,10 @@
-import Effect4.Algebra.Sum
+import Effects.Algebra.Sum
 
 /-!
 # Universal property of well-founded programs
 -/
 
-namespace Effect4
+namespace Effects
 
 /-- A polymorphic monad morphism out of `Program signature`. -/
 structure IsMonadMorphism
@@ -253,4 +253,4 @@ theorem interpret_inhabits_the_pin [Monad M]
     fun handler operation =>
       interpret_perform_of_rightUnit rightUnit handler operation⟩
 
-end Effect4
+end Effects

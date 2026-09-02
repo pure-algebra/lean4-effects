@@ -1,11 +1,11 @@
-import Effect4.Algebra.Handler
-import Effect4.Algebra.MonadLaws
+import Effects.Algebra.Handler
+import Effects.Algebra.MonadLaws
 
 /-!
 # Program and interpretation laws
 -/
 
-namespace Effect4
+namespace Effects
 
 theorem Program.bind_pure_right (program : Program S A) :
     program.bind Program.pure = program := by
@@ -107,4 +107,4 @@ theorem Program.eq_of_all_interpretations
   have equation := equal (Program S) identityHandler
   simpa only [interpret_identity] using equation
 
-end Effect4
+end Effects

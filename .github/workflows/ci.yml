@@ -15,6 +15,8 @@ jobs:
           auto-config: false
       - name: Build production library
         run: lake build Effects
+      - name: Verify signature-and-axiom parity with the lean4-effect4 source receipt
+        run: ./scripts/check-algebra-parity.sh
       - name: Build the test battery and run the axiom gate
         run: lake build
       - name: Self-test the trust gate

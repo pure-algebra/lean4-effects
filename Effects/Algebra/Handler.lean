@@ -1,4 +1,4 @@
-import Effect4.Algebra.Program
+import Effects.Algebra.Program
 
 /-!
 # Handlers and interpretation
@@ -7,7 +7,7 @@ A handler assigns a target-monad action to every operation. Interpretation
 is structural recursion over the well-founded proof carrier.
 -/
 
-namespace Effect4
+namespace Effects
 
 /-- A direct interpretation of every operation of `signature`. -/
 structure Handler
@@ -37,4 +37,4 @@ def Handler.sum (left : Handler S M) (right : Handler T M) :
     | .inl operation => left.handle operation
     | .inr operation => right.handle operation
 
-end Effect4
+end Effects

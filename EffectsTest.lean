@@ -1,3 +1,6 @@
+import EffectsTest.Algebra.ExtractionContract
+import EffectsTest.Algebra.RetainedClosureContract
+import EffectsTest.Algebra.AxiomReport
 import EffectsTest.Audit.AxiomGate
 
 /-!

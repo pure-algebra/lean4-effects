@@ -1,10 +1,10 @@
-import Effect4.Algebra.Laws
+import Effects.Algebra.Laws
 
 /-!
 # Signature sums and program injections
 -/
 
-namespace Effect4
+namespace Effects
 
 theorem Handler.sum_handle_inl (left : Handler S M) (right : Handler T M)
     (operation : S.Op) :
@@ -354,4 +354,4 @@ theorem Program.inr_unique_all_models
       square M left right program)
     program
 
-end Effect4
+end Effects

@@ -5,7 +5,7 @@ These propositions let sharp theorems require only the equations their proofs
 consume. The ordinary public theorems continue to accept `LawfulMonad`.
 -/
 
-namespace Effect4
+namespace Effects
 
 /-- Left-unit equation for a monad. -/
 abbrev LeftUnit (M : Type u → Type v) [Monad M] : Prop :=
@@ -34,4 +34,4 @@ theorem bindAssoc_of_lawful {M : Type u → Type v}
     [Monad M] [LawfulMonad M] : BindAssoc M :=
   fun value next last => bind_assoc value next last
 
-end Effect4
+end Effects

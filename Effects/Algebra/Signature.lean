@@ -6,7 +6,7 @@ operation. Operation and answer universes are independent, while every
 program result over a signature deliberately lives in the answer universe.
 -/
 
-namespace Effect4
+namespace Effects
 
 set_option linter.checkUnivs false in
 /-- A family of operations indexed by their answer types. -/
@@ -25,4 +25,4 @@ def Signature.sum
 @[inherit_doc Signature.sum]
 infixl:65 " ⊕ₛ " => Signature.sum
 
-end Effect4
+end Effects

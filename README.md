@@ -11,10 +11,13 @@ reifications (WHATWG Streams first) build against it, and
 TypeScript reification, depends on it and later imports those standard
 instances. Nothing depends in the other direction.
 
-Current state: **slice S1 of the split, skeleton only.** The algebra modules
-arrive in slice S2 by a history-preserving move from lean4-effect4. The plan,
-its rulings, and its exit gates are `docs/EFFECTS-SPLIT-PLAN.md` in that
-repository.
+Current state: **slice S2 of the split.** The nine algebra modules are here
+under `Effects/Algebra/` with their lean4-effect4 history, renamed into the
+`Effects` namespace and nothing else; `generated/algebra-parity.tsv` is the
+byte-identical receipt against the source commit. The three batteries moved
+with them and are declared red until slice S3 repoints them. The plan, its
+rulings, and its exit gates are `docs/EFFECTS-SPLIT-PLAN.md` in
+lean4-effect4.
 
 ## Build and gates
 
@@ -26,6 +29,14 @@ The default build compiles the library, the test battery, and the axiom
 gate: every declaration compiled from this tree must stay within `propext`
 and `Quot.sound`, no authored `partial` or `unsafe` modifier is admitted, and
 every `.lean` file must be reachable from the test root.
+
+```bash
+./scripts/check-algebra-parity.sh
+```
+
+Regenerates the parity receipt for the nine algebra modules and compares it
+byte-for-byte with the committed receipt and with the receipt taken from
+lean4-effect4 at the source commit.
 
 ```bash
 ./scripts/test-trust-gate.sh

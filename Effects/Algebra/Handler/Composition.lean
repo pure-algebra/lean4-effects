@@ -1,10 +1,10 @@
-import Effect4.Algebra.Universal
+import Effects.Algebra.Universal
 
 /-!
 # Handler composition
 -/
 
-namespace Effect4
+namespace Effects
 
 /-- Collapse an implementation in `Program T` through a handler for `T`. -/
 def Handler.through [Monad M]
@@ -55,4 +55,4 @@ theorem interpret_through_of_equations [Monad M]
             bind_congr fun answer => ih answer
         _ = interpret (upper.through lower) (Program.vis operation next) := rfl
 
-end Effect4
+end Effects

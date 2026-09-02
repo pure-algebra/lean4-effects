@@ -1,10 +1,10 @@
-import Effect4.Algebra.Handler.Composition
+import Effects.Algebra.Handler.Composition
 
 /-!
 # Category-shaped handler towers
 -/
 
-namespace Effect4
+namespace Effects
 
 theorem Handler.through_assoc [Monad M]
     (leftUnit : LeftUnit M) (assoc : BindAssoc M)
@@ -38,4 +38,4 @@ theorem Handler.through_endomorphism_monoid
     Handler.through_identity_right first,
     Handler.through_identity_left rightUnit_of_lawful first⟩
 
-end Effect4
+end Effects

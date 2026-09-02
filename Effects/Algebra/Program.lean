@@ -1,4 +1,4 @@
-import Effect4.Algebra.Signature
+import Effects.Algebra.Signature
 
 /-!
 # Well-founded effect programs
@@ -10,7 +10,7 @@ when an operation has infinitely many answers. It intentionally has no
 decidable equality, serialization, or content identity.
 -/
 
-namespace Effect4
+namespace Effects
 
 /-- A well-founded free operation tree over `signature`. -/
 inductive Program
@@ -50,4 +50,4 @@ def inr : Program T A → Program (Signature.sum S T) A
 
 end Program
 
-end Effect4
+end Effects
