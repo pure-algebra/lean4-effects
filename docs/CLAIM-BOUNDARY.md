@@ -71,3 +71,24 @@ The ceiling for every declaration under `Effects/` and `EffectsTest/` is
 module, `EffectsTest.Audit.AxiomGate`, because `MetaM` reaches it. There are
 no declaration-level admissions. A new admission is recorded here first and
 in the gate second, and the gate fails if the admission goes stale.
+
+## v0.2.0 additions
+
+Three generic packets and one move, stood up 2026-09-02 ahead of their
+contract packets (the proofs are the one-induction shapes the algebra
+already uses; batteries follow):
+
+- `Effects/Morphism.lean`: `Signature.Hom`, `Program.map`, `Handler.pull`,
+  `interpret_map`, the sum isomorphisms and `Signature.empty`. The row normal
+  form of a requirement set.
+- `Effects/Transport.lean`: `MonadHom`, `Handler.mapHom`, `interpret_mapHom`,
+  `interpretHom`, `through = mapHom (interpretHom ·)` by `rfl`, `MonadHom.stateT`.
+  State transport through a tower.
+- `Effects/Family.lean`: `Family`, `Family.toSignature`, `Family.Service` and
+  its round trip with `Handler`, `Alphabet` and `Alphabet.toFamily`. The
+  first-order carrier's embedding that the boundary above promised downstream.
+- `Effects/Flow/*`: the generic first-order flow and its checked admission,
+  moved from lean4-effect4 `de3e2ec` with only the namespace changed.
+
+The claims of the nine algebra modules are unchanged; `generated/algebra-parity.tsv`
+still holds.

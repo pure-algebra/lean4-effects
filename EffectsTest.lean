@@ -1,3 +1,4 @@
+import EffectsTest.Family.TowerSmoke
 import EffectsTest.Algebra.ExtractionContract
 import EffectsTest.Algebra.RetainedClosureContract
 import EffectsTest.Algebra.AxiomReport
