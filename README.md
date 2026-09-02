@@ -53,4 +53,6 @@ rejected for the stated reason.
 
 ## License
 
-Apache-2.0. See `LICENSE`.
+MIT, unified with the rest of the family. See `LICENSE`. Foldlab evidence
+cited in `test/counterexamples/REGISTER.md` remains under Foldlab's own
+Apache-2.0.
