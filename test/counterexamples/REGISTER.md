@@ -1,7 +1,8 @@
 # Effects counterexample register
 
 Stable IDs in this file are never reused. The eight algebra rows keep the IDs
-they had in lean4-effect4 (`E4-ALG-CE-*`); the `origin` column records where
+they had in lean4-effect4 (`E4-ALG-CE-*`); rows minted here use the family
+`EF-<AREA>-CE-NNN`; the `origin` column records where
 each row came from and the `disposition` column records how its witness is
 reviewable from a clean checkout of this repository:
 
@@ -35,3 +36,6 @@ Foldlab's Apache-2.0 license. Effects does not import Foldlab.
 | `E4-ALG-CE-006` | PINNED | A fixed-fuel evaluator admits a bind/composition law | Foldlab `Universal.lean:894–910`, `run_has_no_composition_law` over the CAS word store; re-derived generically as `EffectsTest/Counterexamples/Algebra/FixedFuel.lean`, `run_has_no_composition_law` | state composition at `interpret`/big-step, never at one fixed fuel | lean4-effect4 `217d3e4`; Foldlab pin | ported executable witness (re-derived; Foldlab span retained as provenance) |
 | `E4-ALG-CE-007` | PINNED | The higher-order proof carrier is canonical first-order program content | Foldlab `Prog.lean:12–15`: continuations are host functions and are not serializable; `docs/DESIGN-BASIS.md` DB-01 and `docs/CLAIM-BOUNDARY.md` "No serialization or identity" | keep `Program` as proof syntax; introduce a distinct checked first-order flow with an explicit embedding | lean4-effect4 `217d3e4`; Foldlab pin | design row |
 | `E4-ALG-CE-008` | SEEDED | Inductiveness makes every `Program` a globally finite tree | `EffectsTest/Algebra/ExtractionContract.lean`: a `Nat`-indexed injective continuation has distinct children of unbounded finite depth | describe `Program` as a well-founded higher-order W-tree; claim only selected-branch well-foundedness, not finite branching or a uniform depth bound | lean4-effect4 `217d3e4` | ported executable witness |
+| `EF-TRACE-CE-001` | SEEDED | A tracing handler is `Handler.mapHom` of a monad homomorphism | `EffectsTest/Counterexamples/Trace/Around.lean`, `mapHom_logs_nothing`: the lift-transported handler runs `incr` with an empty log | tracing is an around-wrapper (`Family.Service.traced`); its law is `interpret_traced_fst` | this repository, v0.3.0 | ported executable witness |
+| `EF-TRACE-CE-002` | SEEDED | Operation order plus outcome determines a run, so answers are redundant | `Around.lean`, `answers_separate_what_ops_do_not`: services answering 41 and 5 agree on operations and outcome | `Mask.m1` keeps `answer` and `failed` rows | this repository, v0.3.0 | ported executable witness |
+| `EF-TRACE-CE-003` | SEEDED | Agreement may be checked on unprojected traces | `Around.lean`, `agreement_is_per_mask`: equal under `m1`, different raw and under `m2` | every agreement names its mask; `agree_of_agree_m2` is the only refinement direction | this repository, v0.3.0 | ported executable witness |

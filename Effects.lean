@@ -14,6 +14,7 @@ import Effects.Flow.Block
 import Effects.Flow.Raw
 import Effects.Flow.Admission
 import Effects.Flow.Checked
+import Effects.Trace
 
 /-!
 # Effects

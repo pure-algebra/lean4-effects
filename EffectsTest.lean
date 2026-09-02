@@ -5,6 +5,9 @@ import EffectsTest.Algebra.AxiomReport
 import EffectsTest.Counterexamples.Algebra.InterpreterPin
 import EffectsTest.Counterexamples.Algebra.FixedFuel
 import EffectsTest.Counterexamples.Algebra.TowerCategory
+import EffectsTest.Trace.TraceContract
+import EffectsTest.Trace.AxiomReport
+import EffectsTest.Counterexamples.Trace.Around
 import EffectsTest.Audit.AxiomGate
 
 /-!

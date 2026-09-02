@@ -92,3 +92,21 @@ already uses; batteries follow):
 
 The claims of the nine algebra modules are unchanged; `generated/algebra-parity.tsv`
 still holds.
+
+## v0.3.0: the trace alphabet
+
+`Effects/Trace.lean` adds one service-level observation vocabulary
+(`Trace.Event`: operation with request and answer, failure, decision, region
+entry and exit, finalizer with its outcome, outcome, frontier), masks as
+projections (`m1` keeps operations, answers, failures and the outcome; `m2`
+keeps everything), and `Family.Service.traced`, an around-wrapper that logs
+each method's request and answer. Its law is `interpret_traced_fst`:
+forgetting the log recovers the plain interpretation. Packet:
+`test/contracts/trace.contract.md`; attacks `EF-TRACE-CE-001..003`.
+
+Not claimed: any relation between a trace and a host, a frame machine, or a
+scheduler; any behavioural equivalence. Agreement between two emitters of this
+alphabet is a downstream, executable judgment under a named mask, and it is
+stated in lean4-effect4 (`docs/TRACE-DAG.md`), never here. The module
+traverses no `String`; rendering a trace to a wire form is a consumer's
+admission.
