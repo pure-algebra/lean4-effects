@@ -7,7 +7,7 @@ dependencies and no knowledge of any host runtime.
 
 `Effects` is the umbrella for general effect implementations. Web-standard
 reifications (WHATWG Streams first) build against it, and
-[lean4-effect4](https://github.com/mepuka/lean4-effect4), the Effect
+[lean4-effect4](https://github.com/pure-algebra/lean4-effect4), the Effect
 TypeScript reification, depends on it and later imports those standard
 instances. Nothing depends in the other direction.
 
