@@ -156,7 +156,10 @@ def SlotWF (alphabet : FlowAlphabet Ty) (raw : RawFlow Ty) (block : RawBlock Ty)
             if edge = 1 then
               if slot = errorArgs.length ∧ errorTarget = target then
                 match alphabet.lookup operation, targetBlock.params[slot]? with
-                | some operationDef, some declared => alphabet.errorTy operationDef = declared
+                | some operationDef, some declared =>
+                    match alphabet.errorTy operationDef with
+                    | some errorType => errorType = declared
+                    | none => True
                 | _, _ => True
               else True
             else
@@ -204,15 +207,32 @@ def BranchTestWF (alphabet : FlowAlphabet Ty) (block : RawBlock Ty) : Prop :=
       | none => True
   | _ => True
 
-/-- Every declared block satisfies the five term clauses: variables in range,
-successor arity, argument and answer types, operand types, and the branch
-test's boolean spelling. -/
+/-- A `performCatch` names an operation that can fail (Effects v0.8.0). The
+failure successor's last slot binds a value of the operation's declared error
+type; an operation whose `errorTy` is `none` has no such value, so the edge
+has nothing to carry and the catch is a shape the alphabet does not admit.
+
+This is the clause that makes `errorTy` mean something. Guarded by operation
+closure, which `OperationsWF` owns; it is also what guards `SlotWF`'s error
+arm, which compares only when `errorTy` is `some`. -/
+def CatchableWF (alphabet : FlowAlphabet Ty) (block : RawBlock Ty) : Prop :=
+  match block.term with
+  | .performCatch operation _ _ _ _ _ =>
+      match alphabet.lookup operation with
+      | some operationDef => (alphabet.errorTy operationDef).isSome = true
+      | none => True
+  | _ => True
+
+/-- Every declared block satisfies the six term clauses: variables in range,
+successor arity, argument and answer types, operand types, the branch test's
+boolean spelling, and a catch's operation being able to fail. -/
 def TermsWF (alphabet : FlowAlphabet Ty) (raw : RawFlow Ty) : Prop :=
   (∀ block, block ∈ raw.blocks → block.VarsWF) ∧
   (∀ block, block ∈ raw.blocks → ArityWF raw block) ∧
   (∀ block, block ∈ raw.blocks → ArgumentsWF alphabet raw block) ∧
   (∀ block, block ∈ raw.blocks → OperandsWF alphabet raw block) ∧
-  (∀ block, block ∈ raw.blocks → BranchTestWF alphabet block)
+  (∀ block, block ∈ raw.blocks → BranchTestWF alphabet block) ∧
+  (∀ block, block ∈ raw.blocks → CatchableWF alphabet block)
 
 /-! ## The cycle clause -/
 

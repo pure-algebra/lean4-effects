@@ -20,6 +20,12 @@ where v3 changed it; this file pins only what v3 adds:
 Every receipt is kernel-checked: `#check` ascriptions, `rfl`, `decide`, and
 `#guard` over `admit`. The two named attacks live in
 `EffectsTest/Counterexamples/Flow/FlowV3.lean`.
+
+Amended at Effects v0.8.0 under `test/contracts/effects-boundary.contract.md`,
+which supersedes this packet's `errorTy` row, its `ArgumentFailureValid`
+error arm, and its clause count: `errorTy` is `Op → Option Ty`, the error slot
+is compared only when it is `some`, `TermsWF` is six-fold, and `scan` has
+nineteen clauses. Everything else is the v3 freeze verbatim.
 -/
 
 import Effects.Flow.Admission
@@ -40,7 +46,7 @@ section SurfaceSnapshot
 /-! V0: the alphabet's two new rows. -/
 
 #check (@FlowAlphabet.errorTy :
-  ∀ {Ty : Type uTy} (alphabet : FlowAlphabet.{uTy, uOp} Ty), alphabet.Op → Ty)
+  ∀ {Ty : Type uTy} (alphabet : FlowAlphabet.{uTy, uOp} Ty), alphabet.Op → Option Ty)
 
 #check (@FlowAlphabet.boolTy :
   ∀ {Ty : Type uTy}, FlowAlphabet.{uTy, uOp} Ty → Ty)
@@ -200,8 +206,10 @@ example {Ty : Type uTy} (alphabet : FlowAlphabet.{uTy, uOp} Ty) (block : RawBloc
         site := .term block.id
         payload := payload })
 
-/-- Eighteen ordered clauses; `branchTestType` follows `termTypeMismatch`,
-the other operand clause, and precedes `unknownVariable`. -/
+/-- Nineteen ordered clauses; `branchTestType` follows `termTypeMismatch`, the
+other operand clause, `catchUnfailable` (v0.8.0) follows it, and both precede
+`unknownVariable`. This is the one pin of the list: the v2 battery keeps only a
+`Sublist` receipt for its own clauses. -/
 example : scan = [
     .alphabetMismatch,
     .duplicateBlockId,
@@ -217,13 +225,14 @@ example : scan = [
     .entryTypeMismatch,
     .termTypeMismatch,
     .branchTestType,
+    .catchUnfailable,
     .unknownVariable,
     .argumentArity,
     .argumentTypeMismatch,
     .unchosenCycle
   ] := rfl
 
-#guard scan.length == 18
+#guard scan.length == 19
 
 /-! V5: the two new argument-typing arms. -/
 
@@ -247,24 +256,28 @@ example : scan = [
       {raw : RawFlow Ty} {block : RawBlock Ty} {edge : Nat} {target : BlockId}
       {operation : OperationId} {request : Var} {valueTarget : BlockId}
       {args : List Var} {errorArgs : List Var}
-      {operationDef : alphabet.Op} {targetBlock : RawBlock Ty} {declared : Ty},
+      {operationDef : alphabet.Op} {targetBlock : RawBlock Ty}
+      {errorType declared : Ty},
     block.term = .performCatch operation request valueTarget args target errorArgs →
     edge = 1 →
     alphabet.lookup operation = some operationDef →
+    alphabet.errorTy operationDef = some errorType →
     lookupBlock raw target = some targetBlock →
     (RawBlock.params targetBlock)[errorArgs.length]? = some declared →
-    alphabet.errorTy operationDef ≠ declared →
+    errorType ≠ declared →
     ArgumentFailureValid alphabet raw block edge target errorArgs.length
-      (.typeMismatch (alphabet.errorTy operationDef) declared))
+      (.typeMismatch errorType declared))
 
-/-- Flow v3's term clause is five-fold: the fifth is the branch test. -/
+/-- The term clause is six-fold: the fifth is the branch test (v3) and the
+sixth is the catch's error capability (v0.8.0). -/
 example {Ty : Type uTy} (alphabet : FlowAlphabet.{uTy, uOp} Ty) (raw : RawFlow Ty) :
     TermsWF alphabet raw ↔
       ((∀ block, block ∈ raw.blocks → block.VarsWF) ∧
        (∀ block, block ∈ raw.blocks → ArityWF raw block) ∧
        (∀ block, block ∈ raw.blocks → ArgumentsWF alphabet raw block) ∧
        (∀ block, block ∈ raw.blocks → OperandsWF alphabet raw block) ∧
-       (∀ block, block ∈ raw.blocks → BranchTestWF alphabet block)) :=
+       (∀ block, block ∈ raw.blocks → BranchTestWF alphabet block) ∧
+       (∀ block, block ∈ raw.blocks → CatchableWF alphabet block)) :=
   Iff.rfl
 
 end Clauses
@@ -308,8 +321,8 @@ def ExampleAlphabet : FlowAlphabet TyCode where
     | .probe => .bool
     | .run => .nat
   errorTy
-    | .probe => .unit
-    | .run => .str
+    | .probe => some .unit
+    | .run => some .str
   boolTy := .bool
   lookup_operationId := by
     intro operation

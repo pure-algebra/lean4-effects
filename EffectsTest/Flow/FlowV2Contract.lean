@@ -861,7 +861,7 @@ def ExampleAlphabet : FlowAlphabet TyCode where
   answerTy
     | .get => .nat
     | .put => .unit
-  errorTy _ := .unit
+  errorTy _ := some .unit
   boolTy := .bool
   lookup_operationId := by
     intro operation

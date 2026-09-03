@@ -71,10 +71,19 @@ structure FlowAlphabet.{uTy, uOp} (Ty : Type uTy) where
   requestTy : Op → Ty
   answerTy : Op → Ty
   /-- The declared error type of an operation (Flow v3): the type of the value
-  a `performCatch` binds in the last slot of its failure successor. An
-  operation that cannot fail declares the alphabet's own empty spelling; the
-  admission boundary never reads that spelling, it only compares. -/
-  errorTy : Op → Ty
+  a `performCatch` binds in the last slot of its failure successor, and `none`
+  for an operation that cannot fail.
+
+  v0.8.0 made this an `Option`. It used to be a total `Op → Ty`, and the
+  comment here asked an operation that cannot fail to "declare the alphabet's
+  own empty spelling" — a convention the type could not express, since `Ty` is
+  a code type with no emptiness predicate, and one an alphabet could satisfy
+  by declaring `errorTy op = answerTy op`. `performCatch` admission was
+  therefore weaker than it read. `none` makes "cannot fail" a fact of the
+  table, decidable without any predicate on `Ty`, and the admission clause
+  `catchUnfailable` refuses a `performCatch` on such an operation. The
+  boundary still never reads a spelling, it only compares. -/
+  errorTy : Op → Option Ty
   /-- The spelling a `branch` test operand must carry (Flow v3). -/
   boolTy : Ty
   lookup_operationId : ∀ operation,

@@ -14,9 +14,11 @@ is `argumentArity` then `argumentTypeMismatch` (positional, per successor);
 variable range is `unknownVariable`; the global cycle clause is
 `unchosenCycle`, decided by `cyclesChoose`.
 
-Flow v3 (`test/contracts/flow-v3.contract.md`) makes that eighteen. One clause
-is new — `branchTestType`, that a `branch` tests the alphabet's boolean
-spelling — and two are generalised: `argumentArity` and `argumentTypeMismatch`
+Flow v3 (`test/contracts/flow-v3.contract.md`) makes that eighteen, and
+Effects v0.8.0 (`test/contracts/effects-boundary.contract.md`) nineteen. Two
+clauses are new — `branchTestType`, that a `branch` tests the alphabet's
+boolean spelling, and `catchUnfailable`, that a `performCatch` names an
+operation that can fail — and two are generalised: `argumentArity` and `argumentTypeMismatch`
 now read the arity and the argument list *of the edge*, keyed by its position
 in `RawTerm.successors`, so a `performCatch`'s value and failure successors are
 checked against their own lists. Every other clause is textually unchanged and
@@ -43,6 +45,9 @@ inductive AdmissionClause where
   | termTypeMismatch
   /-- Flow v3: a `branch` tests a value that is not the alphabet's boolean. -/
   | branchTestType
+  /-- Effects v0.8.0: a `performCatch` on an operation whose declared error
+  type is `none`, so its failure edge has no value to bind. -/
+  | catchUnfailable
   | unknownVariable
   | argumentArity
   | argumentTypeMismatch
@@ -139,6 +144,18 @@ inductive BranchFailureValid
       (mismatch : actual ≠ alphabet.boolTy) :
       BranchFailureValid alphabet block (.typeMismatch alphabet.boolTy actual)
 
+/-- The catch-capability failure of one block (clause `catchUnfailable`,
+Effects v0.8.0), guarded by operation closure. -/
+inductive CatchFailureValid
+    (alphabet : FlowAlphabet Ty) (block : RawBlock Ty) : DiagnosticPayload Ty → Prop where
+  | unfailable {operation : OperationId} {request : Var} {target : BlockId}
+      {args : List Var} {onError : BlockId} {errorArgs : List Var}
+      {operationDef : alphabet.Op}
+      (term : block.term = .performCatch operation request target args onError errorArgs)
+      (known : alphabet.lookup operation = some operationDef)
+      (unfailable : alphabet.errorTy operationDef = none) :
+      CatchFailureValid alphabet block (.operation operation)
+
 /-- Positional typing failures on one successor edge of one block (clause
 `argumentTypeMismatch`), guarded by resolution, arity, variable range, and
 operation closure. Flow v3: the edge is named by its position in
@@ -178,15 +195,16 @@ inductive ArgumentFailureValid
         (.typeMismatch (alphabet.answerTy operationDef) declared)
   | catchError {operation : OperationId} {request : Var} {valueTarget : BlockId}
       {args : List Var} {errorArgs : List Var}
-      {operationDef : alphabet.Op} {targetBlock : RawBlock Ty} {declared : Ty}
+      {operationDef : alphabet.Op} {targetBlock : RawBlock Ty} {errorType declared : Ty}
       (term : block.term = .performCatch operation request valueTarget args target errorArgs)
       (errorEdge : edge = 1)
       (known : alphabet.lookup operation = some operationDef)
+      (fails : alphabet.errorTy operationDef = some errorType)
       (found : lookupBlock raw target = some targetBlock)
       (declaredAt : targetBlock.params[errorArgs.length]? = some declared)
-      (mismatch : alphabet.errorTy operationDef ≠ declared) :
+      (mismatch : errorType ≠ declared) :
       ArgumentFailureValid alphabet raw block edge target errorArgs.length
-        (.typeMismatch (alphabet.errorTy operationDef) declared)
+        (.typeMismatch errorType declared)
 
 namespace Diagnostic
 
@@ -297,6 +315,13 @@ inductive Valid (alphabet : FlowAlphabet Ty) (raw : RawFlow Ty) :
           BranchFailureValid alphabet candidate failure)
         index block payload) :
       Valid alphabet raw ⟨.branchTestType, .term block.id, payload⟩
+  | catchUnfailable {index : Nat} {block : RawBlock Ty}
+      {payload : DiagnosticPayload Ty}
+      (first : FirstFailureAt raw.blocks
+        (fun _ candidate failure =>
+          CatchFailureValid alphabet candidate failure)
+        index block payload) :
+      Valid alphabet raw ⟨.catchUnfailable, .term block.id, payload⟩
   | unknownVariable {blockIndex operandIndex : Nat} {block : RawBlock Ty} {unknown : Var}
       (first : FirstFailureAt raw.blocks
         (fun _ candidate witness =>
@@ -362,6 +387,7 @@ def scan : List AdmissionClause := [
   .entryTypeMismatch,
   .termTypeMismatch,
   .branchTestType,
+  .catchUnfailable,
   .unknownVariable,
   .argumentArity,
   .argumentTypeMismatch,
@@ -408,6 +434,8 @@ private def ClauseHolds
       ∀ block, block ∈ raw.blocks → OperandsWF alphabet raw block
   | .branchTestType =>
       ∀ block, block ∈ raw.blocks → BranchTestWF alphabet block
+  | .catchUnfailable =>
+      ∀ block, block ∈ raw.blocks → CatchableWF alphabet block
   | .unknownVariable => ∀ block, block ∈ raw.blocks → block.VarsWF
   | .argumentArity => ∀ block, block ∈ raw.blocks → ArityWF raw block
   | .argumentTypeMismatch =>
@@ -1016,6 +1044,58 @@ private theorem branchFailure?_eq_none_iff [DecidableEq Ty]
           by_cases typed : actual = alphabet.boolTy <;>
             simp [branchFailure?, BranchTestWF, termEq, typedEq, typed]
 
+/-! ## Catch capability (`catchUnfailable`, Effects v0.8.0) -/
+
+private def catchFailure?
+    (alphabet : FlowAlphabet Ty) (block : RawBlock Ty) : Option (DiagnosticPayload Ty) :=
+  match block.term with
+  | .performCatch operation _ _ _ _ _ =>
+      match alphabet.lookup operation with
+      | some operationDef =>
+          match alphabet.errorTy operationDef with
+          | some _ => none
+          | none => some (.operation operation)
+      | none => none
+  | _ => none
+
+private theorem catchFailure?_eq_some_iff
+    (alphabet : FlowAlphabet Ty) (block : RawBlock Ty) (payload : DiagnosticPayload Ty) :
+    catchFailure? alphabet block = some payload ↔
+      CatchFailureValid alphabet block payload := by
+  constructor
+  · intro failure
+    cases termEq : block.term with
+    | ret | jump | perform | choose | branch =>
+        simp [catchFailure?, termEq] at failure
+    | performCatch operation request target args onError errorArgs =>
+        cases knownEq : alphabet.lookup operation with
+        | none => simp [catchFailure?, termEq, knownEq] at failure
+        | some operationDef =>
+            cases errorEq : alphabet.errorTy operationDef with
+            | some errorType => simp [catchFailure?, termEq, knownEq, errorEq] at failure
+            | none =>
+                simp [catchFailure?, termEq, knownEq, errorEq] at failure
+                subst payload
+                exact .unfailable termEq knownEq errorEq
+  · intro valid
+    cases valid with
+    | unfailable term known unfailable =>
+        simp [catchFailure?, term, known, unfailable]
+
+private theorem catchFailure?_eq_none_iff
+    (alphabet : FlowAlphabet Ty) (block : RawBlock Ty) :
+    catchFailure? alphabet block = none ↔ CatchableWF alphabet block := by
+  cases termEq : block.term with
+  | ret | jump | perform | choose | branch =>
+      simp [catchFailure?, CatchableWF, termEq]
+  | performCatch operation request target args onError errorArgs =>
+      cases knownEq : alphabet.lookup operation with
+      | none => simp [catchFailure?, CatchableWF, termEq, knownEq]
+      | some operationDef =>
+          cases errorEq : alphabet.errorTy operationDef with
+          | some errorType => simp [catchFailure?, CatchableWF, termEq, knownEq, errorEq]
+          | none => simp [catchFailure?, CatchableWF, termEq, knownEq, errorEq]
+
 /-! ## Variable range (`unknownVariable`) -/
 
 private def variableFailure? (block : RawBlock Ty) (_ : Nat) (operand : Var) : Option Var :=
@@ -1189,8 +1269,11 @@ private def slotFailure? [DecidableEq Ty] (alphabet : FlowAlphabet Ty) (raw : Ra
               if slot = errorArgs.length ∧ errorTarget = target then
                 match alphabet.lookup operation, targetBlock.params[slot]? with
                 | some operationDef, some declared =>
-                    if alphabet.errorTy operationDef = declared then none
-                    else some (.typeMismatch (alphabet.errorTy operationDef) declared)
+                    match alphabet.errorTy operationDef with
+                    | some errorType =>
+                        if errorType = declared then none
+                        else some (.typeMismatch errorType declared)
+                    | none => none
                 | _, _ => none
               else none
             else
@@ -1262,11 +1345,18 @@ private theorem slotFailure?_eq_some_iff [DecidableEq Ty] (alphabet : FlowAlphab
                         cases declaredAt : targetBlock.params[errorArgs.length]? with
                         | none => simp [termEq, errorEdge, known, declaredAt] at failure
                         | some declared =>
-                            by_cases typed : alphabet.errorTy operationDef = declared
-                            · simp [termEq, errorEdge, known, declaredAt, typed] at failure
-                            · simp [termEq, errorEdge, known, declaredAt, typed] at failure
-                              subst payload
-                              exact .catchError termEq errorEdge known found declaredAt typed
+                            cases fails : alphabet.errorTy operationDef with
+                            | none =>
+                                simp [termEq, errorEdge, known, declaredAt, fails] at failure
+                            | some errorType =>
+                                by_cases typed : errorType = declared
+                                · simp [termEq, errorEdge, known, declaredAt, fails,
+                                    typed] at failure
+                                · simp [termEq, errorEdge, known, declaredAt, fails,
+                                    typed] at failure
+                                  subst payload
+                                  exact .catchError termEq errorEdge known fails found
+                                    declaredAt typed
                   · simp [termEq, errorEdge, errorSlot] at failure
                 · by_cases answerSlot : slot = args.length ∧ valueTarget = target
                   · obtain ⟨slotEq, targetEq⟩ := answerSlot
@@ -1301,13 +1391,13 @@ private theorem slotFailure?_eq_some_iff [DecidableEq Ty] (alphabet : FlowAlphab
           exact List.getElem?_eq_none (Nat.le_refl _)
         simp only [slotFailure?, found, argumentAt]
         simp [term, valueEdge, known, declaredAt, mismatch]
-    | @catchError operation request valueTarget args errorArgs operationDef targetBlock declared
-        term errorEdge known found declaredAt mismatch =>
+    | @catchError operation request valueTarget args errorArgs operationDef targetBlock
+        errorType declared term errorEdge known fails found declaredAt mismatch =>
         have argumentAt : (block.term.argsAt edge)[errorArgs.length]? = none := by
           rw [term, RawTerm.argsAt_performCatch, if_pos errorEdge]
           exact List.getElem?_eq_none (Nat.le_refl _)
         simp only [slotFailure?, found, argumentAt]
-        simp [term, errorEdge, known, declaredAt, mismatch]
+        simp [term, errorEdge, known, fails, declaredAt, mismatch]
 
 private theorem slotFailure?_eq_none_iff [DecidableEq Ty] (alphabet : FlowAlphabet Ty)
     (raw : RawFlow Ty) (block : RawBlock Ty) (edge : Nat) (target : BlockId) (slot : Nat) :
@@ -1361,8 +1451,11 @@ private theorem slotFailure?_eq_none_iff [DecidableEq Ty] (alphabet : FlowAlphab
                         cases targetBlock.params[errorArgs.length]? with
                         | none => simp [errorEdge, known]
                         | some declared =>
-                            by_cases typed : alphabet.errorTy operationDef = declared <;>
-                              simp [errorEdge, known, typed]
+                            cases fails : alphabet.errorTy operationDef with
+                            | none => simp [errorEdge, known, fails]
+                            | some errorType =>
+                                by_cases typed : errorType = declared <;>
+                                  simp [errorEdge, known, fails, typed]
                   · subst slotEq
                     simp [errorEdge, targetEq]
                 · simp [errorEdge, slotEq]
@@ -1569,6 +1662,11 @@ private def clauseHoldsDecidable [DecidableEq Ty]
       show Decidable (∀ block, block ∈ raw.blocks → BranchTestWF alphabet block)
       letI : DecidablePred (BranchTestWF alphabet (Ty := Ty)) :=
         fun block => decidable_of_iff _ (branchFailure?_eq_none_iff alphabet block)
+      infer_instance
+  | catchUnfailable =>
+      show Decidable (∀ block, block ∈ raw.blocks → CatchableWF alphabet block)
+      letI : DecidablePred (CatchableWF alphabet (Ty := Ty)) :=
+        fun block => decidable_of_iff _ (catchFailure?_eq_none_iff alphabet block)
       infer_instance
   | unknownVariable =>
       show Decidable (∀ block, block ∈ raw.blocks → block.VarsWF)
@@ -1859,6 +1957,24 @@ private def preciseFailure [DecidableEq Ty]
             (fun _ candidate failure =>
               branchFailure?_eq_some_iff alphabet candidate failure) found
           exact ⟨.term block.id, payload, .branchTestType first⟩
+  | catchUnfailable =>
+      cases found : firstFailure? raw.blocks
+          (fun _ block => catchFailure? alphabet block) with
+      | none =>
+          have clear := firstFailure?_eq_none_iff.mp found
+          have allCatchable : ∀ block, block ∈ raw.blocks →
+              CatchableWF alphabet block := by
+            intro block blockMem
+            obtain ⟨index, blockAt⟩ := List.mem_iff_getElem?.mp blockMem
+            exact (catchFailure?_eq_none_iff alphabet block).mp
+              (clear index block blockAt)
+          exact (refute allCatchable).elim
+      | some result =>
+          rcases result with ⟨index, block, payload⟩
+          have first := firstFailure?_eq_some_valid
+            (fun _ candidate failure =>
+              catchFailure?_eq_some_iff alphabet candidate failure) found
+          exact ⟨.term block.id, payload, .catchUnfailable first⟩
   | unknownVariable =>
       cases found : firstFailure? raw.blocks variableBlockFailure? with
       | none =>
@@ -1998,7 +2114,7 @@ private theorem flowWF_iff_clauses [DecidableEq Ty]
     rcases idsWF_view raw |>.mp wf.ids with ⟨blockIds, blockOrder, decisions⟩
     rcases wf.roots with
       ⟨rootsNonempty, rootIds, rootOrder, entryRoot, rootsResolve⟩
-    rcases wf.terms with ⟨vars, arity, arguments, operands, branchTests⟩
+    rcases wf.terms with ⟨vars, arity, arguments, operands, branchTests, catchables⟩
     cases clause with
     | alphabetMismatch => exact wf.alphabet
     | duplicateBlockId => exact blockIds
@@ -2014,6 +2130,7 @@ private theorem flowWF_iff_clauses [DecidableEq Ty]
     | entryTypeMismatch => exact wf.entry
     | termTypeMismatch => exact operands
     | branchTestType => exact branchTests
+    | catchUnfailable => exact catchables
     | unknownVariable => exact vars
     | argumentArity => exact arity
     | argumentTypeMismatch => exact arguments
@@ -2037,7 +2154,8 @@ private theorem flowWF_iff_clauses [DecidableEq Ty]
       operations := holds .unknownOperation
       entry := holds .entryTypeMismatch
       terms := ⟨holds .unknownVariable, holds .argumentArity,
-        holds .argumentTypeMismatch, holds .termTypeMismatch, holds .branchTestType⟩
+        holds .argumentTypeMismatch, holds .termTypeMismatch, holds .branchTestType,
+        holds .catchUnfailable⟩
       cycles := holds .unchosenCycle
     }
 
@@ -2065,7 +2183,7 @@ end FirstDiagnostic
 
 namespace Diagnostic
 
-/-- All eighteen independent checks pass exactly when the eight WF fields hold. -/
+/-- All nineteen independent checks pass exactly when the eight WF fields hold. -/
 theorem clause_all_complete [DecidableEq Ty]
     {alphabet : FlowAlphabet Ty} {raw : RawFlow Ty} :
     FlowWF alphabet raw ↔

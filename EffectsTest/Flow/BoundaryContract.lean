@@ -104,4 +104,93 @@ example : ([ .duplicateRegion, .unknownParent, .continueOutside, .continueTyped
       {label : Option RegionId} {targets : List BlockId},
     flow.targetsLabelled label targets = true ↔ flow.TargetsLabelled label targets)
 
+/-! ## `errorTy` is an `Option`, and a catch on an unfailable operation is
+refused (finding #43, `EF-FLOW-CE-010`) -/
+
+#check (@FlowAlphabet.errorTy :
+  ∀ {Ty : Type uTy} (alphabet : FlowAlphabet.{uTy, uOp} Ty), alphabet.Op → Option Ty)
+
+#check (@AdmissionClause.catchUnfailable : AdmissionClause)
+
+#guard scan.length == 19
+
+/-- `catchUnfailable` sits between `branchTestType` and `unknownVariable`: it
+needs the operation to be in the alphabet (`unknownOperation`, earlier) and it
+guards the error slot that `argumentTypeMismatch` compares (later). -/
+example : (scan.drop 12).take 4 =
+    [.termTypeMismatch, .branchTestType, .catchUnfailable, .unknownVariable] := rfl
+
+section Unfailable
+
+inductive Code where
+  | nat
+  | bool
+deriving DecidableEq, Repr
+
+inductive Op where
+  /-- `total : nat → nat`, and it cannot fail. -/
+  | total
+  /-- `risky : nat → nat`, failing with a `nat`. -/
+  | risky
+deriving DecidableEq, Repr
+
+def look : OperationId → Option Op
+  | ⟨0⟩ => some .total
+  | ⟨1⟩ => some .risky
+  | _ => none
+
+def alphabet : FlowAlphabet Code where
+  id := ⟨0⟩
+  Op := Op
+  operationId
+    | .total => ⟨0⟩
+    | .risky => ⟨1⟩
+  lookup := look
+  requestTy _ := .nat
+  answerTy _ := .nat
+  errorTy
+    | .total => none
+    | .risky => some .nat
+  boolTy := .bool
+  lookup_operationId := by intro operation; cases operation <;> rfl
+  operationId_of_lookup := by
+    intro id operation found
+    cases operation <;> rcases id with ⟨_ | _ | value⟩ <;> simp [look] at found <;> rfl
+
+def flowCatching (operation : Nat) : RawFlow Code :=
+  ⟨⟨0⟩, [⟨0⟩], ⟨0⟩, .nat, .nat,
+    [ { id := ⟨0⟩, params := [.nat],
+        term := .performCatch ⟨operation⟩ ⟨0⟩ ⟨1⟩ [] ⟨2⟩ [] }
+    , { id := ⟨1⟩, params := [.nat], term := .ret ⟨0⟩ }
+    , { id := ⟨2⟩, params := [.nat], term := .ret ⟨0⟩ } ]⟩
+
+def refusal? (raw : RawFlow Code) : Option (Diagnostic Code) :=
+  match admit alphabet raw with
+  | .error diagnostic => some diagnostic
+  | .ok _ => none
+
+/-! A catch on `risky`, whose `errorTy` is `some .nat`, is admitted. -/
+#guard refusal? (flowCatching 1) = none
+
+/-! `EF-FLOW-CE-010`: a catch on `total`, whose `errorTy` is `none`, is refused
+by `catchUnfailable` at the block's own term site, naming the operation. Under
+the v0.7.0 total `errorTy` this flow was admitted, because every operation
+declared some error type and the boundary only ever compared spellings. -/
+#guard refusal? (flowCatching 0) =
+  some ⟨.catchUnfailable, .term ⟨0⟩, .operation ⟨0⟩⟩
+
+/-- The clause is a clause of `FlowWF`: the refused flow fails `CatchableWF`,
+which is what `catchUnfailable` decides. -/
+example : ¬ CatchableWF alphabet
+    { id := ⟨0⟩, params := [.nat],
+      term := .performCatch ⟨0⟩ ⟨0⟩ ⟨1⟩ [] ⟨2⟩ [] } := by
+  show ¬ (match alphabet.lookup ⟨0⟩ with
+    | some operationDef => (alphabet.errorTy operationDef).isSome = true
+    | none => True)
+  have : alphabet.lookup ⟨0⟩ = some Op.total := rfl
+  simp [this]
+  rfl
+
+end Unfailable
+
 end EffectsTest.Flow.BoundaryContract

@@ -47,8 +47,26 @@ admission weaker than it reads (#43).
 | `RegionWF` | a `structure` with one field per region clause |
 | `regionWF_iff_check` | `RegionWF alphabet flow ↔ flow.check alphabet = none` |
 | `FlowAlphabet.errorTy` | `Op → Option Ty` |
-| `AdmissionClause.catchUnfailable` | the clause refusing a `performCatch` on an operation with no declared error type |
+| `CatchableWF` | `TermsWF`'s sixth conjunct: a `performCatch` names an operation whose `errorTy` is `some` |
+| `AdmissionClause.catchUnfailable` | the clause refusing a `performCatch` on an operation with no declared error type; scan position 14, between `branchTestType` and `unknownVariable` |
+| `CatchFailureValid` | its witness relation, payload `.operation`, site `.term block.id` |
+| `ArgumentFailureValid.catchError` | re-stated: `errorTy operationDef = some errorType` and `errorType ≠ declared` |
 | `Diagnostic.diagnoseAll` | `scan.filterMap (diagnoseAt alphabet raw)`, with `diagnoseAll_eq_nil_iff` |
+
+## Why `Option`, not an `emptyTy` row
+
+The alternative in finding #43 was an alphabet-level `emptyTy : Ty` compared
+the same way. It was rejected: it is the same unconstrained convention in a
+different place. `Ty` is a code type with no emptiness predicate, so nothing
+stops an alphabet declaring `emptyTy = answerTy op`, and admission — which
+only ever compares spellings — could not tell. `Option` makes "this operation
+cannot fail" a fact of the table rather than a convention about one of its
+values, is decidable without any predicate on `Ty`, and costs one clause.
+
+The boundary still reads no spelling. `errorTy` is one type per operation, and
+`catchUnfailable` asks only whether there is one; the claim boundary's "no
+error algebra" stands unchanged — no error sum, no subtyping, no relation to a
+host error.
 
 ## Privatised
 

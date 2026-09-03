@@ -74,8 +74,8 @@ def ExampleAlphabet : FlowAlphabet TyCode where
     | .probe => .bool
     | .run => .nat
   errorTy
-    | .probe => .unit
-    | .run => .str
+    | .probe => some .unit
+    | .run => some .str
   boolTy := .bool
   lookup_operationId := by
     intro operation
