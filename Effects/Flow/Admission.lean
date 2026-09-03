@@ -2197,6 +2197,42 @@ theorem clause_all_complete [DecidableEq Ty]
     intro clause member
     exact diagnoseAt_eq_none_iff.mp (clear clause member)
 
+
+/--
+Every failing clause's diagnostic, in `scan` order.
+
+`admit` returns exactly one diagnostic, the first, which is the right answer
+for a boundary that either admits a flow or does not. A caller reporting to a
+human wants all of them, and until v0.8.0 had to fold `diagnoseAt` over `scan`
+itself — `firstDiagnostic?` is private, and there is no `admit?`. This is that
+fold, with the law it needs: the list is empty exactly when the flow is well
+formed, which is `clause_all_complete` read through `filterMap`.
+
+It is a *report*, not a second admission path. `admit` is unchanged and stays
+the boundary; nothing here re-decides anything, and the clause order is the
+same `scan` the first diagnostic uses.
+-/
+def diagnoseAll [DecidableEq Ty]
+    (alphabet : FlowAlphabet Ty) (raw : RawFlow Ty) : List (Diagnostic Ty) :=
+  scan.filterMap (diagnoseAt alphabet raw)
+
+/-- The report is empty exactly when the flow is admitted. -/
+theorem diagnoseAll_eq_nil_iff [DecidableEq Ty]
+    {alphabet : FlowAlphabet Ty} {raw : RawFlow Ty} :
+    diagnoseAll alphabet raw = [] ↔ FlowWF alphabet raw := by
+  rw [diagnoseAll, List.filterMap_eq_nil_iff]
+  exact clause_all_complete.symm
+
+/-- Every diagnostic in the report carries its exact source witness, the same
+guarantee `admit_error_valid` gives the single one. -/
+theorem diagnoseAll_valid [DecidableEq Ty]
+    {alphabet : FlowAlphabet Ty} {raw : RawFlow Ty}
+    {diagnostic : Diagnostic Ty} (member : diagnostic ∈ diagnoseAll alphabet raw) :
+    Valid alphabet raw diagnostic := by
+  rw [diagnoseAll, List.mem_filterMap] at member
+  obtain ⟨clause, _, found⟩ := member
+  exact diagnoseAt_some_valid found
+
 end Diagnostic
 
 private theorem scan_nodup : scan.Nodup := by decide

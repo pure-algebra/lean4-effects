@@ -193,4 +193,34 @@ example : ¬ CatchableWF alphabet
 
 end Unfailable
 
+/-! ## Every diagnostic at once (finding #45) -/
+
+#check (@Diagnostic.diagnoseAll :
+  ∀ {Ty : Type uTy} [_inst : DecidableEq Ty] (_alphabet : FlowAlphabet Ty)
+      (_raw : RawFlow Ty), List (Diagnostic Ty))
+
+#check (@Diagnostic.diagnoseAll_eq_nil_iff :
+  ∀ {Ty : Type uTy} [_inst : DecidableEq Ty] {alphabet : FlowAlphabet Ty}
+      {raw : RawFlow Ty}, Diagnostic.diagnoseAll alphabet raw = [] ↔ FlowWF alphabet raw)
+
+#check @Diagnostic.diagnoseAll_valid
+
+section Reporting
+
+
+/-! An admitted flow reports nothing. -/
+#guard Diagnostic.diagnoseAll alphabet (flowCatching 1) = []
+
+/-! A refused one reports every failing clause, in `scan` order, and `admit`
+returns the first of them. -/
+#guard (Diagnostic.diagnoseAll alphabet (flowCatching 0)).map Diagnostic.clause =
+  ([.catchUnfailable] : List AdmissionClause)
+
+#guard (Diagnostic.diagnoseAll alphabet (flowCatching 0)).head? =
+  (match admit alphabet (flowCatching 0) with
+   | .error diagnostic => some diagnostic
+   | .ok _ => none)
+
+end Reporting
+
 end EffectsTest.Flow.BoundaryContract
