@@ -1,4 +1,5 @@
 import Effects.Flow.Block
+import Effects.ListAux
 
 /-!
 # Raw first-order flows
@@ -26,6 +27,19 @@ deriving DecidableEq, Repr
 /-- Resolve the first declared block with the requested nominal identity. -/
 def lookupBlock (raw : RawFlow Ty) (id : BlockId) : Option (RawBlock Ty) :=
   raw.blocks.find? fun block => block.id = id
+
+/-- A resolved block carries the identity it was looked up by. -/
+theorem lookupBlock_id {raw : RawFlow Ty} {id : BlockId} {block : RawBlock Ty}
+    (found : lookupBlock raw id = some block) : block.id = id := by
+  unfold lookupBlock at found
+  have matched := List.find?_some found
+  simpa using matched
+
+/-- A resolved identity is one of the declared block identities. -/
+theorem mem_blockIds_of_lookup {raw : RawFlow Ty} {id : BlockId} {block : RawBlock Ty}
+    (found : lookupBlock raw id = some block) :
+    id ∈ raw.blocks.map RawBlock.id :=
+  lookupBlock_id found ▸ List.mem_map_of_mem (List.mem_of_find?_eq_some found)
 
 /-- A declared block directly names `target` as one of its successors. -/
 def Edge (raw : RawFlow Ty) (source target : BlockId) : Prop :=
@@ -215,6 +229,15 @@ inductive ReachableNoChoose (raw : RawFlow Ty) : BlockId → BlockId → Prop wh
       EdgeNoChoose raw middle target →
       ReachableNoChoose raw source target
 
+/-- Non-`choose` reachability is transitive. -/
+theorem reachableNoChoose_trans {raw : RawFlow Ty} {source middle target : BlockId}
+    (first : ReachableNoChoose raw source middle)
+    (second : ReachableNoChoose raw middle target) :
+    ReachableNoChoose raw source target := by
+  induction second with
+  | refl => exact first
+  | step _ edge ih => exact .step ih edge
+
 /-- Every cycle of the successor graph passes through a `choose` block. -/
 def CyclesWF (raw : RawFlow Ty) : Prop :=
   ∀ source target, EdgeNoChoose raw source target →
@@ -290,21 +313,21 @@ theorem mem_noChooseSuccessors {raw : RawFlow Ty} {source target : BlockId} :
     exact Bool.and_eq_true_iff.mpr ⟨decide_eq_true idEq, (bnot_eq_true_iff _).mpr notChoose⟩
 
 /-- Every successor of every declared block. -/
-def allSuccessors (raw : RawFlow Ty) : List BlockId :=
+private def allSuccessors (raw : RawFlow Ty) : List BlockId :=
   raw.blocks.flatMap fun block => block.term.successors
 
-theorem noChooseSuccessors_subset (raw : RawFlow Ty) (source : BlockId) :
+private theorem noChooseSuccessors_subset (raw : RawFlow Ty) (source : BlockId) :
     raw.noChooseSuccessors source ⊆ raw.allSuccessors := by
   intro target mem
   obtain ⟨block, blockMem, _, _, targetMem⟩ := mem_noChooseSuccessors.mp mem
   exact List.mem_flatMap.mpr ⟨block, blockMem, targetMem⟩
 
 /-- Append each element not already present, in order. -/
-def insertAll (set : List BlockId) : List BlockId → List BlockId
+private def insertAll (set : List BlockId) : List BlockId → List BlockId
   | [] => set
   | x :: xs => insertAll (if x ∈ set then set else set ++ [x]) xs
 
-theorem mem_insertAll {set xs : List BlockId} {x : BlockId} :
+private theorem mem_insertAll {set xs : List BlockId} {x : BlockId} :
     x ∈ insertAll set xs ↔ x ∈ set ∨ x ∈ xs := by
   induction xs generalizing set with
   | nil => simp [insertAll]
@@ -324,7 +347,7 @@ theorem mem_insertAll {set xs : List BlockId} {x : BlockId} :
       · rw [if_neg mem, ih]
         simp only [List.mem_append, List.mem_cons, List.not_mem_nil, or_false, or_assoc]
 
-theorem length_le_insertAll (set xs : List BlockId) :
+private theorem length_le_insertAll (set xs : List BlockId) :
     set.length ≤ (insertAll set xs).length := by
   induction xs generalizing set with
   | nil => simp [insertAll]
@@ -338,7 +361,7 @@ theorem length_le_insertAll (set xs : List BlockId) :
         simp only [List.length_append, List.length_singleton] at step
         omega
 
-theorem subset_of_length_insertAll_eq {set xs : List BlockId}
+private theorem subset_of_length_insertAll_eq {set xs : List BlockId}
     (equal : (insertAll set xs).length = set.length) :
     ∀ x, x ∈ xs → x ∈ set := by
   induction xs generalizing set with
@@ -356,7 +379,7 @@ theorem subset_of_length_insertAll_eq {set xs : List BlockId}
         simp only [List.length_append, List.length_singleton] at step
         omega
 
-theorem nodup_insertAll {set : List BlockId} (nodup : set.Nodup) (xs : List BlockId) :
+private theorem nodup_insertAll {set : List BlockId} (nodup : set.Nodup) (xs : List BlockId) :
     (insertAll set xs).Nodup := by
   induction xs generalizing set with
   | nil => simpa [insertAll] using nodup
@@ -374,7 +397,7 @@ theorem nodup_insertAll {set : List BlockId} (nodup : set.Nodup) (xs : List Bloc
         intro equal
         exact mem (equal ▸ ha)
 
-theorem insertAll_subset {U set xs : List BlockId}
+private theorem insertAll_subset {U set xs : List BlockId}
     (setSub : set ⊆ U) (xsSub : xs ⊆ U) : insertAll set xs ⊆ U := by
   intro x hx
   rcases mem_insertAll.mp hx with h | h
@@ -382,10 +405,10 @@ theorem insertAll_subset {U set xs : List BlockId}
   · exact xsSub h
 
 /-- One step of the closure: the non-`choose` successors of a set. -/
-def expand (raw : RawFlow Ty) (set : List BlockId) : List BlockId :=
+private def expand (raw : RawFlow Ty) (set : List BlockId) : List BlockId :=
   set.flatMap raw.noChooseSuccessors
 
-theorem expand_subset (raw : RawFlow Ty) (set : List BlockId) :
+private theorem expand_subset (raw : RawFlow Ty) (set : List BlockId) :
     raw.expand set ⊆ raw.allSuccessors := by
   intro x hx
   obtain ⟨y, _, hy⟩ := List.mem_flatMap.mp hx
@@ -393,13 +416,13 @@ theorem expand_subset (raw : RawFlow Ty) (set : List BlockId) :
 
 /-- Grow a set through its non-`choose` edges until it stops growing or the
 fuel runs out. -/
-def saturate (raw : RawFlow Ty) : Nat → List BlockId → List BlockId
+private def saturate (raw : RawFlow Ty) : Nat → List BlockId → List BlockId
   | 0, set => set
   | fuel + 1, set =>
     if (insertAll set (raw.expand set)).length = set.length then set
     else saturate raw fuel (insertAll set (raw.expand set))
 
-theorem mem_saturate_of_mem (raw : RawFlow Ty) {x : BlockId} :
+private theorem mem_saturate_of_mem (raw : RawFlow Ty) {x : BlockId} :
     ∀ (fuel : Nat) (set : List BlockId), x ∈ set → x ∈ raw.saturate fuel set := by
   intro fuel
   induction fuel with
@@ -411,7 +434,7 @@ theorem mem_saturate_of_mem (raw : RawFlow Ty) {x : BlockId} :
       · exact h
       · exact ih _ (mem_insertAll.mpr (Or.inl h))
 
-theorem saturate_sound (raw : RawFlow Ty) {start : BlockId} :
+private theorem saturate_sound (raw : RawFlow Ty) {start : BlockId} :
     ∀ (fuel : Nat) (set : List BlockId),
       (∀ x, x ∈ set → ReachableNoChoose raw start x) →
       ∀ x, x ∈ raw.saturate fuel set → ReachableNoChoose raw start x := by
@@ -430,7 +453,7 @@ theorem saturate_sound (raw : RawFlow Ty) {start : BlockId} :
         · obtain ⟨middle, middleMem, hy'⟩ := List.mem_flatMap.mp hy
           exact .step (inv middle middleMem) (mem_noChooseSuccessors.mp hy')
 
-theorem saturate_closed_or_grows (raw : RawFlow Ty) :
+private theorem saturate_closed_or_grows (raw : RawFlow Ty) :
     ∀ (fuel : Nat) (set : List BlockId),
       (∀ y, y ∈ raw.expand (raw.saturate fuel set) → y ∈ raw.saturate fuel set) ∨
         set.length + fuel ≤ (raw.saturate fuel set).length := by
@@ -453,7 +476,7 @@ theorem saturate_closed_or_grows (raw : RawFlow Ty) :
             Nat.lt_of_le_of_ne (length_le_insertAll _ _) (Ne.symm stop)
           omega
 
-theorem nodup_saturate (raw : RawFlow Ty) :
+private theorem nodup_saturate (raw : RawFlow Ty) :
     ∀ (fuel : Nat) {set : List BlockId}, set.Nodup → (raw.saturate fuel set).Nodup := by
   intro fuel
   induction fuel with
@@ -465,7 +488,7 @@ theorem nodup_saturate (raw : RawFlow Ty) :
       · exact h
       · exact ih (nodup_insertAll h _)
 
-theorem saturate_subset (raw : RawFlow Ty) {U : List BlockId}
+private theorem saturate_subset (raw : RawFlow Ty) {U : List BlockId}
     (succSub : raw.allSuccessors ⊆ U) :
     ∀ (fuel : Nat) {set : List BlockId}, set ⊆ U → raw.saturate fuel set ⊆ U := by
   intro fuel
@@ -480,51 +503,13 @@ theorem saturate_subset (raw : RawFlow Ty) {U : List BlockId}
 
 /-- A set closed under non-`choose` edges and containing `start` contains
 everything `start` reaches. -/
-theorem mem_of_closed (raw : RawFlow Ty) {S : List BlockId}
+private theorem mem_of_closed (raw : RawFlow Ty) {S : List BlockId}
     (closed : ∀ y, y ∈ raw.expand S → y ∈ S) {start x : BlockId}
     (startMem : start ∈ S) (reach : ReachableNoChoose raw start x) : x ∈ S := by
   induction reach with
   | refl => exact startMem
   | step _ edge ih =>
       exact closed _ (List.mem_flatMap.mpr ⟨_, ih, mem_noChooseSuccessors.mpr edge⟩)
-
-/-- Removing every copy of a present element shortens a list. Stated here, by
-induction, to stay within the axiom ceiling. -/
-private theorem length_filter_ne {a : BlockId} :
-    ∀ {l : List BlockId}, a ∈ l →
-      (l.filter fun x => decide (x ≠ a)).length + 1 ≤ l.length
-  | [], mem => absurd mem List.not_mem_nil
-  | b :: bs, mem => by
-      by_cases eq : b = a
-      · subst eq
-        rw [List.filter_cons_of_neg (p := fun x => decide (x ≠ b))
-          (by rw [decide_eq_false (fun h => h rfl)]; exact Bool.false_ne_true)]
-        rw [List.length_cons]
-        exact Nat.succ_le_succ (List.length_filter_le _ _)
-      · rw [List.filter_cons_of_pos (p := fun x => decide (x ≠ a)) (decide_eq_true eq),
-          List.length_cons, List.length_cons]
-        have tailMem : a ∈ bs := by
-          rcases List.mem_cons.mp mem with h | h
-          · exact absurd h.symm eq
-          · exact h
-        have ih := length_filter_ne tailMem
-        omega
-
-/-- A duplicate-free list is no longer than any list containing it. -/
-private theorem length_le_of_nodup_subset :
-    ∀ {l₁ l₂ : List BlockId}, l₁.Nodup → l₁ ⊆ l₂ → l₁.length ≤ l₂.length
-  | [], _, _, _ => Nat.zero_le _
-  | a :: l, l₂, nodup, sub => by
-      have ⟨notMem, nodupTail⟩ := List.nodup_cons.mp nodup
-      have aMem : a ∈ l₂ := sub List.mem_cons_self
-      have tailSub : l ⊆ l₂.filter fun x => decide (x ≠ a) := by
-        intro x hx
-        have ne : x ≠ a := fun eq => notMem (eq ▸ hx)
-        exact List.mem_filter.mpr ⟨sub (List.mem_cons_of_mem _ hx), decide_eq_true ne⟩
-      have ih := length_le_of_nodup_subset nodupTail tailSub
-      have bound := length_filter_ne aMem
-      rw [List.length_cons]
-      omega
 
 /-- The blocks reachable from `start` through non-`choose` edges. -/
 def reachSet (raw : RawFlow Ty) (start : BlockId) : List BlockId :=
@@ -541,13 +526,46 @@ theorem mem_reachSet {raw : RawFlow Ty} {start x : BlockId} :
     · exact mem_of_closed raw closed (mem_saturate_of_mem raw _ _ (List.mem_singleton_self start)) reach
     · exfalso
       have bounded : (raw.reachSet start).length ≤ (start :: raw.allSuccessors).length :=
-        length_le_of_nodup_subset
+        ListAux.length_le_of_nodup_subset
           (nodup_saturate raw _ (List.nodup_cons.mpr ⟨List.not_mem_nil, List.nodup_nil⟩))
           (saturate_subset raw (fun y hy => List.mem_cons_of_mem _ hy) _
             (fun y hy => by rw [List.mem_singleton.mp hy]; exact List.mem_cons_self))
       simp only [reachSet] at bounded
       simp only [List.length_cons] at grows bounded
       omega
+
+/-- `reachSet` is duplicate-free, so it can be counted. -/
+theorem nodup_reachSet (raw : RawFlow Ty) (start : BlockId) :
+    (raw.reachSet start).Nodup :=
+  nodup_saturate raw _ (List.nodup_cons.mpr ⟨List.not_mem_nil, List.nodup_nil⟩)
+
+/--
+The measure across a declared non-`choose` edge: the reachable set strictly
+shrinks. It can only shrink, because the source is in its own reachable set
+and, by `CyclesWF`, not in the target's.
+
+This is the one consequence the whole saturation apparatus above exists to
+reach, and the reason `reachSet` is the second component of every flow
+runner's termination measure downstream. Published in v0.8.0 (survey finding
+#39): it was proved in lean4-effect4 over this module's `private` pigeonhole
+pair, which the consumer had to reprove twice.
+-/
+theorem reachSet_length_lt_of_edge {raw : RawFlow Ty} (cycles : CyclesWF raw)
+    {source target : BlockId} (edge : EdgeNoChoose raw source target) :
+    (raw.reachSet target).length < (raw.reachSet source).length := by
+  have notMem : source ∉ raw.reachSet target := fun mem =>
+    cycles source target edge (mem_reachSet.mp mem)
+  have nodup : (source :: raw.reachSet target).Nodup :=
+    List.nodup_cons.mpr ⟨notMem, nodup_reachSet raw target⟩
+  have sub : (source :: raw.reachSet target) ⊆ raw.reachSet source := by
+    intro x hx
+    rcases List.mem_cons.mp hx with rfl | hx
+    · exact mem_reachSet.mpr (.refl _)
+    · exact mem_reachSet.mpr
+        (reachableNoChoose_trans (.step (.refl source) edge) (mem_reachSet.mp hx))
+  have counted := ListAux.length_le_of_nodup_subset nodup sub
+  simp only [List.length_cons] at counted
+  omega
 
 end RawFlow
 

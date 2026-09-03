@@ -14,6 +14,7 @@ import EffectsTest.Flow.FlowV3Contract
 import EffectsTest.Counterexamples.Flow.FlowV2
 import EffectsTest.Counterexamples.Flow.FlowV3
 import EffectsTest.Flow.RegionContract
+import EffectsTest.Flow.BoundaryContract
 import EffectsTest.Audit.AxiomGate
 
 /-!

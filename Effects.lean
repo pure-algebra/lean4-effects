@@ -1,3 +1,4 @@
+import Effects.ListAux
 import Effects.Algebra.Signature
 import Effects.Algebra.Program
 import Effects.Algebra.Handler
@@ -11,6 +12,7 @@ import Effects.Morphism
 import Effects.Transport
 import Effects.Family
 import Effects.Flow.Block
+import Effects.Flow.Alphabet
 import Effects.Flow.Raw
 import Effects.Flow.Admission
 import Effects.Flow.Checked
