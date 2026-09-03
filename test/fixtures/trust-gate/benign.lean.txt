@@ -1,13 +1,22 @@
--- Trust-policy prose may mention `partial def` and `unsafe def`.
-/- Nested comments: /- partial unsafe -/ remain prose. -/
-/-- Documentation may mention `partial` and `unsafe`. -/
-private def plantedTrustVocabulary : String := "partial unsafe"
-/-! Module documentation may also mention `partial` and `unsafe`. -/
-private def plantedRawTrustVocabulary : String := r#"partial "unsafe""#
-private def plantedInterpolatedTrustVocabulary : String := s!"partial unsafe {1}"
+-- Trust-policy prose may mention `partial def`, `unsafe def`, sorry, axiom,
+-- native_decide, extern and implemented_by.
+/- Nested comments: /- partial unsafe sorry axiom -/ remain prose. -/
+/-- Documentation may mention `partial`, `unsafe`, `sorry` and `axiom`. -/
+private def plantedTrustVocabulary : String := "partial unsafe sorry axiom native_decide"
+/-! Module documentation may also mention `partial`, `unsafe` and `sorry`. -/
+private def plantedRawTrustVocabulary : String := r#"partial "unsafe" sorry"#
+private def plantedInterpolatedTrustVocabulary : String := s!"partial unsafe sorry {1}"
 private def plantedTrustCharacter : Char := 'u'
 private def «unsafe» : Nat := 0
 private def «partial» : Nat := 0
+private def «sorry» : Nat := 0
+private def «axiom» : Nat := 0
+-- `admit` is refused only as a keyword, and is not one at this pin: it is the
+-- name of `Effects.admit`, which the flow batteries call unqualified.
+private def admit : Nat := 0
+private def plantedAdmitUse : Nat := admit
+-- An `opaque` with a body is not a bodyless one; only the latter is refused.
+opaque plantedOpaqueWithBody : Nat := 0
 
 private theorem plantedProjection (a b c : Nat)
     (h : True ∧ a = b) (step : b = c) : a = c := h.2.trans step

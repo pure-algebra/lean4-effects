@@ -21,7 +21,7 @@ upstream bug. Its own comment already said where it belonged.
 
 namespace Effects
 
-universe uTy uOp
+universe uTy uOp uAns
 
 /-- The first-order alphabet under a flow alphabet: identity and the executable
 lookup are admission's business, the operation table is the algebra's. -/

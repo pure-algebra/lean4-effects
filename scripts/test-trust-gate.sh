@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Exercises whether the source trust gate rejects authored `partial` and
-# `unsafe` declaration modifiers and unadmitted `Classical.choice`.
+# Exercises whether the trust gate rejects an authored trust token, a bodyless
+# `opaque`, and an unadmitted `Classical.choice`.
 #
 # The detector is an elaboration-time check in the root aggregator
 # `EffectsTest.lean`, which Lake builds LAST. Any earlier module that fails to
@@ -110,7 +110,7 @@ expect_rejection() {
     echo "trust-gate self-test unexpectedly accepted $label" >&2
     exit 1
   fi
-  if ! grep -Fq "contains an authored \`$expected_modifier\` declaration modifier" "$build_log"; then
+  if ! grep -Fq "contains an authored \`$expected_modifier\` trust token" "$build_log"; then
     echo "trust-gate self-test rejected $label for an unexpected reason" >&2
     tail -80 "$build_log" >&2
     exit 1
@@ -129,6 +129,30 @@ expect_rejection "$repo_root/test/fixtures/trust-gate/partial.lean.txt" partial 
   "partial declaration"
 expect_rejection "$repo_root/test/fixtures/trust-gate/unsafe.lean.txt" unsafe \
   "unsafe declaration"
+# The four tokens the source pass exists for: each is written inside an
+# `example` or as a declaration the compiled-environment pass cannot see, or
+# cannot see in time.
+expect_rejection "$repo_root/test/fixtures/trust-gate/sorry.lean.txt" sorry \
+  "sorry inside an example"
+expect_rejection "$repo_root/test/fixtures/trust-gate/native-decide.lean.txt" native_decide \
+  "native_decide inside an example"
+expect_rejection "$repo_root/test/fixtures/trust-gate/axiom.lean.txt" axiom \
+  "axiom declaration"
+
+# --- 1b. a bodyless `opaque` is a declaration-level refusal -----------------
+cp "$audit_original" "$audit_source"
+printf '\n' >>"$audit_source"
+cat "$repo_root/test/fixtures/trust-gate/opaque.lean.txt" >>"$audit_source"
+if (cd "$project_root" && lake build) >"$build_log" 2>&1; then
+  echo "trust-gate self-test unexpectedly accepted a bodyless opaque" >&2
+  exit 1
+fi
+if ! grep -Fq 'is an `opaque` with no body' "$build_log"; then
+  echo "trust-gate self-test rejected the bodyless opaque for an unexpected reason" >&2
+  tail -80 "$build_log" >&2
+  exit 1
+fi
+echo "PASS planted bodyless opaque rejected"
 
 # --- 2. an unadmitted Classical.choice in the production tree is rejected --
 cp "$audit_original" "$audit_source"

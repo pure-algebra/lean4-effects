@@ -261,6 +261,8 @@ theorem arityAt_of_ne_one {term : RawTerm} {edge : Nat} (ne : edge ≠ 1) :
 
 end RawTerm
 
+universe uTy
+
 /-- A first-order block: identity, parameter types, terminator. -/
 structure RawBlock (Ty : Type uTy) where
   id : BlockId

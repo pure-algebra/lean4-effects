@@ -39,6 +39,10 @@ touched.
 
 namespace Effects
 
+universe uTy uOp u
+
+variable {Ty : Type uTy}
+
 /-- Stable identity of a region. -/
 structure RegionId where
   value : Nat
@@ -630,7 +634,7 @@ instance [DecidableEq Ty] (alphabet : FlowAlphabet Ty) (flow : RegionFlow Ty) :
 
 /-- An admitted region flow: its region clauses hold and its erasure is an
 admitted v2 flow. -/
-structure CheckedRegionFlow.{uTy, uOp} {Ty : Type uTy} [DecidableEq Ty]
+structure CheckedRegionFlow {Ty : Type uTy} [DecidableEq Ty]
     (alphabet : FlowAlphabet.{uTy, uOp} Ty) where
   flow : RegionFlow Ty
   regions : RegionWF alphabet flow

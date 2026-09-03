@@ -1,0 +1,3 @@
+private theorem plantedBeforeOpaque (a b c : Nat)
+    (h : True ∧ a = b) (step : b = c) : a = c := h.2.trans step
+opaque plantedOpaque : Nat

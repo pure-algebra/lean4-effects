@@ -1,0 +1,3 @@
+private theorem plantedBeforeAxiom (a b c : Nat)
+    (h : True ∧ a = b) (step : b = c) : a = c := h.2.trans step
+axiom plantedAxiom : (1 : Nat) = 2

@@ -32,7 +32,7 @@ monad homomorphism; `Handler.mapHom` of a lift logs nothing.
 
 namespace Effects
 
-universe u v w
+universe u v w n p a t uS uAns uTarget
 
 namespace Trace
 
@@ -52,6 +52,8 @@ deriving DecidableEq, Repr, Inhabited
 /-- Encode a value on the wire. -/
 class ToVal (α : Type u) where
   toVal : α → Val
+
+variable {α : Type u} {β : Type v} {ε : Type w}
 
 instance : ToVal Unit := ⟨fun _ => .unit⟩
 instance : ToVal Nat := ⟨.nat⟩
@@ -127,6 +129,8 @@ structure Mask where
   outcome : Bool
   frontier : Bool
 deriving DecidableEq, Repr
+
+variable {ω υ δ ρ : Type u}
 
 namespace Mask
 

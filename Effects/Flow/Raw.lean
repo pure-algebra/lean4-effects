@@ -14,6 +14,10 @@ tape bounds every run; `cyclesChoose` decides it by structural recursion and
 
 namespace Effects
 
+universe uTy uOp
+
+variable {Ty : Type uTy}
+
 /-- Unchecked, canonicalizable first-order effect-flow input. -/
 structure RawFlow (Ty : Type uTy) where
   alphabet : AlphabetId
@@ -274,7 +278,7 @@ structure FlowWF (alphabetDef : FlowAlphabet Ty) (raw : RawFlow Ty) : Prop where
   terms : TermsWF alphabetDef raw
   cycles : CyclesWF raw
 
-private theorem exists_eq_some_of_isSome
+private theorem exists_eq_some_of_isSome {α : Type uTy}
     {value : Option α} (isSome : value.isSome = true) :
     ∃ item, value = some item := by
   cases value with

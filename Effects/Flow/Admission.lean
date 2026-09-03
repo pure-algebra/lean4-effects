@@ -28,6 +28,11 @@ extends to the two new terminators through `successors`, `operands`,
 
 namespace Effects
 
+universe uTy uOp uA uB
+
+variable {Ty : Type uTy}
+variable {α : Type uA} {β : Type uB}
+
 /-- The fixed, public order of independently checkable admission clauses. -/
 inductive AdmissionClause where
   | alphabetMismatch
@@ -2308,7 +2313,7 @@ private theorem firstDiagnostic?_eq_some_iff [DecidableEq Ty]
     exact candidateInBefore
 
 /-- The proof-carrying result of successful admission. -/
-structure CheckedFlow.{uTy, uOp} {Ty : Type uTy}
+structure CheckedFlow {Ty : Type uTy}
     (alphabet : FlowAlphabet.{uTy, uOp} Ty) : Type uTy where
   private mk ::
   raw : RawFlow Ty
@@ -2421,7 +2426,7 @@ theorem admit_error_valid [DecidableEq Ty]
   (error_iff_firstDiagnostic.mp errored).valid
 
 /-- Erasing any checked flow retains its WF evidence. -/
-theorem erase_wf (checked : CheckedFlow alphabet) :
+theorem erase_wf {alphabet : FlowAlphabet Ty} (checked : CheckedFlow alphabet) :
     FlowWF alphabet checked.erase :=
   by simpa using checked.wf
 

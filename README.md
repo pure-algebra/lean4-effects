@@ -47,8 +47,13 @@ lake build
 
 The default build compiles the library, the test battery, and the axiom
 gate: every declaration compiled from this tree must stay within `propext`
-and `Quot.sound`, no authored `partial` or `unsafe` modifier is admitted, and
-every `.lean` file must be reachable from the test root.
+and `Quot.sound`, no authored trust token (`unsafe`, `partial`, `sorry`,
+`axiom`, `native_decide`, `extern`, `implemented_by`) is admitted anywhere in
+the source — including inside an `example`, which never enters the environment
+— no `opaque` may go without a body, and every `.lean` file must be reachable
+from the test root. The library compiles with `autoImplicit` and
+`relaxedAutoImplicit` off; the nine `Effects/Algebra/` modules restore them,
+for the reason their headers give.
 
 ```bash
 ./scripts/check-algebra-parity.sh
@@ -62,9 +67,12 @@ lean4-effect4 at the source commit.
 ./scripts/test-trust-gate.sh
 ```
 
-The self-test plants a `partial` declaration, an `unsafe` declaration, and an
-unadmitted `Classical.choice` into a throwaway copy and checks that each is
-rejected for the stated reason.
+The self-test plants six defects into a throwaway copy — `partial`, `unsafe`,
+a `sorry` and a `native_decide` inside an `example`, an `axiom`, a bodyless
+`opaque` — plus an unadmitted `Classical.choice` in the production tree, and
+checks that each is rejected for the stated reason while the benign fixture
+(escaped names, prose, string literals, `admit` as an identifier, an `opaque`
+that has a body) still passes.
 
 ## License
 
