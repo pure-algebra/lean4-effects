@@ -27,7 +27,7 @@ Sixty named theorems have axiom receipts in
 Later bumps add, on top of the frozen algebra: model morphisms, transport,
 and families (v0.2.0); the service-level trace alphabet with tracing
 services (v0.3.x); and the first-order flow packet with block parameters and
-the every-cycle-chooses clause (v0.4.0). Each has its own entry in
+the every-cycle-chooses clause (v0.4.0); and regions over it (v0.5.0). Each has its own entry in
 `docs/CLAIM-BOUNDARY.md` and its own contract under `test/contracts/`.
 
 ## Build and gates

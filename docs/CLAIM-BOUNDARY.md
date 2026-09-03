@@ -140,3 +140,19 @@ receipts in `EffectsTest/Flow/FlowV2AxiomReport.lean`; the union is
 Not claimed: any run of a flow (the runner, its frontier, and the decision
 tape live in lean4-effect4); regions and finalizers (a later bump); any
 relation between a flow and a program, a trace, or a host.
+
+## v0.5.0: regions over first-order flows
+
+`Effects/Flow/Region.lean` adds a region layer that erases to Flow v2
+(`RegionFlow.erase`): `enter` opens a region, `acquire` performs and registers
+a release for its answer in the innermost region, `leave` closes the innermost
+region with a value and control continues at the region's `continue_` block.
+Fourteen region clauses (`RegionFlow.check`, first failure) check what erasure
+forgets: region ownership of every block, the shape of every `enter`,
+`acquire` and `leave`, and that no `ret` skips a region; `admitRegions` runs
+them and then v2 on the erasure, and `CheckedRegionFlow` carries both proofs.
+Packet: `test/contracts/flow-regions.contract.md`; attacks `EF-FLOW-CE-004..006`.
+
+Not claimed: any run of a region flow, the order and the exits its releases
+observe, or any relation to a host scope; those are lean4-effect4's
+(`docs/TRACE-DAG.md`, packet P-T7). The v0.4.0 surface is unchanged.
