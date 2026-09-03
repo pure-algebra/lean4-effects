@@ -110,6 +110,16 @@ def withBlock (flow : RegionFlow String) (id : Nat) (label : Option RegionId) (t
 #guard refusal? (admitRegions alphabet (withBlock scopedFlow 1 (some ⟨1⟩) (.acquire ⟨1⟩ ⟨0⟩ ⟨0⟩ ⟨2⟩ [⟨0⟩]))) =
   some .acquireRelease
 
+-- EF-FLOW-CE-009: an unknown release is `acquireRelease` whatever the acquired
+-- operation is. Erasure drops the release entirely, so v2's `unknownOperation`
+-- never sees it; when the acquired operation is unknown too, the region layer
+-- used to stay silent and the unknown release surfaced only on a second round.
+-- Operation 3 is off the end of a three-row table.
+#guard refusal? (admitRegions alphabet (withBlock scopedFlow 1 (some ⟨1⟩) (.acquire ⟨0⟩ ⟨0⟩ ⟨3⟩ ⟨2⟩ [⟨0⟩]))) =
+  some .acquireRelease
+#guard refusal? (admitRegions alphabet (withBlock scopedFlow 1 (some ⟨1⟩) (.acquire ⟨3⟩ ⟨0⟩ ⟨3⟩ ⟨2⟩ [⟨0⟩]))) =
+  some .acquireRelease
+
 -- The `continue_` block must declare exactly the region's result.
 #guard refusal? (admitRegions alphabet
     { scopedFlow with blocks := scopedFlow.blocks.map fun block =>

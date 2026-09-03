@@ -141,7 +141,9 @@ inductive RegionClause where
   | enterBody
   /-- an `acquire` outside every region -/
   | acquireOutside
-  /-- a release operation is unknown or does not take the acquired answer -/
+  /-- a release operation is unknown, or is known and does not take the
+  acquired answer. The unknown case does not depend on the acquired operation:
+  erasure drops the release, so no v2 clause ever sees it (`EF-FLOW-CE-009`). -/
   | acquireRelease
   /-- a `leave` outside every region -/
   | leaveOutside
@@ -214,12 +216,19 @@ where
         if block.region.isNone then some ⟨.acquireOutside, some block.id, none⟩
         else if !flow.targetsLabelled block.region [target] then some ⟨.successorLabel, some block.id, block.region⟩
         else
-          match alphabet.lookup operation, alphabet.lookup release with
-          | some acquired, some releaser =>
-              if alphabet.requestTy releaser = alphabet.answerTy acquired then none
-              else some ⟨.acquireRelease, some block.id, block.region⟩
-          | some _, none => some ⟨.acquireRelease, some block.id, block.region⟩
-          | none, _ => none
+          -- The release is checked on its own first. `eraseTerm` drops it, so
+          -- v2's `unknownOperation` never sees it; keying this arm on the
+          -- *acquired* operation left an unknown release invisible whenever the
+          -- acquired operation was unknown too, and it surfaced only on a
+          -- second round (`EF-FLOW-CE-009`).
+          match alphabet.lookup release with
+          | none => some ⟨.acquireRelease, some block.id, block.region⟩
+          | some releaser =>
+              match alphabet.lookup operation with
+              | none => none
+              | some acquired =>
+                  if alphabet.requestTy releaser = alphabet.answerTy acquired then none
+                  else some ⟨.acquireRelease, some block.id, block.region⟩
     | .leave value =>
         match block.region.bind flow.row? with
         | none => some ⟨.leaveOutside, some block.id, block.region⟩
