@@ -12,3 +12,6 @@ import Effects.Trace
 #print axioms Effects.Family.Service.traced_projects
 #print axioms Effects.Family.Service.interpret_traced_fst
 #print axioms Effects.Family.Service.traced_perform
+#print axioms Effects.interpret_projectsExcept_fst
+#print axioms Effects.Family.Service.tracedExcept_projects
+#print axioms Effects.Family.Service.interpret_tracedExcept_fst

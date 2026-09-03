@@ -28,7 +28,7 @@ scheduler alphabets of lean4-effect4.
   `finalizer`, `done`, `frontier`).
 - `Trace.Mask` (seven booleans), `Mask.keeps`, `Mask.outcomeOnly`, `Mask.m1`,
   `Mask.m2`, `Trace.project`.
-- `Family.Service.traced`, `Handler.Projects`.
+- `Family.Service.traced`, `Handler.Projects`; (v0.3.1) `Family.Service.tracedExcept`, `Handler.ProjectsExcept`.
 
 Binder names may differ; names, universes, argument roles, constructor fields and
 theorem propositions are frozen by the battery's ascriptions.
@@ -43,6 +43,11 @@ Proved without `sorry`, custom axioms, `partial`, `unsafe`, or
    to the plain handler after forgetting the state (`LawfulMonad M`).
 3. `Family.Service.traced_projects`, `Family.Service.interpret_traced_fst`,
    `Family.Service.traced_perform`.
+4. (v0.3.1) `Family.Service.tracedExcept` for a service into `ExceptT ε M`,
+   with the log outside the error so a failed operation still records its
+   request and a `failed` row; `Handler.ProjectsExcept`,
+   `interpret_projectsExcept_fst`, `Family.Service.tracedExcept_projects`,
+   `Family.Service.interpret_tracedExcept_fst`.
 
 ## Counterexample obligations
 

@@ -73,6 +73,23 @@ variable (ω υ δ ρ : Type u)
         (interpret (service.traced nameOf encodeParam encodeAnswer).toHandler program).run log =
       interpret service.toHandler program)
 
+#check (@Family.Service.tracedExcept :
+  ∀ {F : Family} {ε : Type} {M : Type → Type t} [Monad M] {ω υ δ ρ : Type},
+    (F.Name → ω) → ((name : F.Name) → F.Param name → υ) →
+    ((name : F.Name) → F.Answer name → υ) → (ε → υ) →
+    F.Service (ExceptT ε M) → F.Service (ExceptT ε (StateT (List (Event ω υ δ ρ)) M)))
+
+#check (@Family.Service.interpret_tracedExcept_fst :
+  ∀ {F : Family} {ε : Type} {M : Type → Type t} [Monad M] [LawfulMonad M] {ω υ δ ρ : Type}
+    (nameOf : F.Name → ω) (encodeParam : (name : F.Name) → F.Param name → υ)
+    (encodeAnswer : (name : F.Name) → F.Answer name → υ) (encodeError : ε → υ)
+    (service : F.Service (ExceptT ε M)) {A : Type} (program : Program F.toSignature A)
+    (log : List (Event ω υ δ ρ)),
+    (fun result => result.1) <$>
+        ((interpret (service.tracedExcept nameOf encodeParam encodeAnswer encodeError).toHandler
+          program).run.run log) =
+      (interpret service.toHandler program).run)
+
 end SurfaceSnapshot
 
 /-! ## Executable receipts on the smoke tower -/

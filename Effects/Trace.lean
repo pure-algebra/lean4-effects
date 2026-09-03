@@ -242,6 +242,100 @@ theorem Family.Service.interpret_traced_fst {F : Family.{n, p, a}} {M : Type a �
       interpret service.toHandler program :=
   interpret_projects_fst (service.traced_projects nameOf encodeParam encodeAnswer) program log
 
+/-! ## Tracing a fallible service
+
+The aborting error reading: a service into `ExceptT ε M`. The log sits
+*outside* the error (`ExceptT ε (StateT log M)`), so a failed operation still
+records its request and a `failed` row, and the caller sees both the error and
+the log. -/
+
+namespace Family
+
+/-- Wrap every method of a fallible service: request, then `answer` on
+success or `failed` on error, re-raising the error. -/
+def Service.tracedExcept {F : Family.{n, p, a}} {ε : Type a} {M : Type a → Type t} [Monad M]
+    {ω υ δ ρ : Type a}
+    (nameOf : F.Name → ω)
+    (encodeParam : (name : F.Name) → F.Param name → υ)
+    (encodeAnswer : (name : F.Name) → F.Answer name → υ)
+    (encodeError : ε → υ)
+    (service : F.Service (ExceptT ε M)) :
+    F.Service (ExceptT ε (StateT (List (Trace.Event ω υ δ ρ)) M)) :=
+  fun name param => ExceptT.mk fun log =>
+    (service name param).run >>= fun result =>
+      pure (result,
+        log ++ [Trace.Event.op (nameOf name) (encodeParam name param)] ++
+          match result with
+          | .ok answer => [Trace.Event.answer (nameOf name) (encodeAnswer name answer)]
+          | .error error => [Trace.Event.failed (nameOf name) (encodeError error)])
+
+end Family
+
+/-- A handler into `ExceptT ε (StateT σ M)` projects onto one into `ExceptT ε M`
+when forgetting the state recovers every method. -/
+def Handler.ProjectsExcept {S : Signature.{uS, uAns}} {ε σ : Type uAns}
+    {M : Type uAns → Type t} [Monad M]
+    (traced : Handler S (ExceptT ε (StateT σ M))) (plain : Handler S (ExceptT ε M)) : Prop :=
+  ∀ (operation : S.Op) (state : σ),
+    (fun result => result.1) <$> ((traced.handle operation).run.run state) =
+      (plain.handle operation).run
+
+/-- Forgetting the state of a projecting fallible handler recovers the plain
+fallible interpretation. One induction on the program, generalised over the
+state; the error branch is where the two carriers agree by `pure`. -/
+theorem interpret_projectsExcept_fst {S : Signature.{uS, uAns}} {ε σ : Type uAns}
+    {M : Type uAns → Type t} [Monad M] [LawfulMonad M]
+    {traced : Handler S (ExceptT ε (StateT σ M))} {plain : Handler S (ExceptT ε M)}
+    (projects : traced.ProjectsExcept plain) {A : Type uAns}
+    (program : Program S A) (state : σ) :
+    (fun result => result.1) <$> ((interpret traced program).run.run state) =
+      (interpret plain program).run := by
+  induction program generalizing state with
+  | pure value =>
+      show (fun result => result.1) <$> (pure (Except.ok value, state) : M (Except ε A × σ)) =
+        (pure (Except.ok value) : M (Except ε A))
+      rw [map_pure]
+  | vis operation next ih =>
+      rw [interpret_vis, interpret_vis, ExceptT.run_bind, ExceptT.run_bind, StateT.run_bind, map_bind,
+        ← projects operation state, bind_map_left]
+      refine bind_congr fun result => ?_
+      cases outcome : result.1 with
+      | ok answer => simp only [ih]
+      | error error => simp only [StateT.run_pure, map_pure]
+
+/-- The traced fallible service projects onto the plain one. -/
+theorem Family.Service.tracedExcept_projects {F : Family.{n, p, a}} {ε : Type a}
+    {M : Type a → Type t} [Monad M] [LawfulMonad M] {ω υ δ ρ : Type a}
+    (nameOf : F.Name → ω)
+    (encodeParam : (name : F.Name) → F.Param name → υ)
+    (encodeAnswer : (name : F.Name) → F.Answer name → υ)
+    (encodeError : ε → υ)
+    (service : F.Service (ExceptT ε M)) :
+    (service.tracedExcept (δ := δ) (ρ := ρ) nameOf encodeParam encodeAnswer encodeError).toHandler.ProjectsExcept
+      service.toHandler := by
+  intro operation log
+  simp only [Family.Service.toHandler, Family.Service.tracedExcept, ExceptT.run, ExceptT.mk, StateT.run]
+  rw [map_bind]
+  simp only [map_pure]
+  exact bind_pure _
+
+/-- The law for the fallible reading: forgetting the log recovers the plain
+fallible interpretation, error included. -/
+theorem Family.Service.interpret_tracedExcept_fst {F : Family.{n, p, a}} {ε : Type a}
+    {M : Type a → Type t} [Monad M] [LawfulMonad M] {ω υ δ ρ : Type a}
+    (nameOf : F.Name → ω)
+    (encodeParam : (name : F.Name) → F.Param name → υ)
+    (encodeAnswer : (name : F.Name) → F.Answer name → υ)
+    (encodeError : ε → υ)
+    (service : F.Service (ExceptT ε M)) {A : Type a}
+    (program : Program F.toSignature A) (log : List (Trace.Event ω υ δ ρ)) :
+    (fun result => result.1) <$>
+        ((interpret (service.tracedExcept nameOf encodeParam encodeAnswer encodeError).toHandler
+          program).run.run log) =
+      (interpret service.toHandler program).run :=
+  interpret_projectsExcept_fst
+    (service.tracedExcept_projects nameOf encodeParam encodeAnswer encodeError) program log
+
 /-- Performing one operation logs exactly its request and its answer. -/
 theorem Family.Service.traced_perform {F : Family.{n, p, a}} {M : Type a → Type t}
     [Monad M] [LawfulMonad M] {ω υ δ ρ : Type a}

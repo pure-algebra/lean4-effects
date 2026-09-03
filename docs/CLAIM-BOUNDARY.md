@@ -104,6 +104,10 @@ each method's request and answer. Its law is `interpret_traced_fst`:
 forgetting the log recovers the plain interpretation. Packet:
 `test/contracts/trace.contract.md`; attacks `EF-TRACE-CE-001..003`.
 
+v0.3.1 adds `Family.Service.tracedExcept` for the aborting error reading (a
+service into `ExceptT ε M`, log outside the error) with the same projection
+law, `interpret_tracedExcept_fst`.
+
 Not claimed: any relation between a trace and a host, a frame machine, or a
 scheduler; any behavioural equivalence. Agreement between two emitters of this
 alphabet is a downstream, executable judgment under a named mask, and it is
