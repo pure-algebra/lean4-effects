@@ -14,6 +14,7 @@ full, then open only the documents named for the current task.
 | `docs/ALGEBRA-DAG.md` | the proof graph of the nine algebra modules |
 | `generated/` | the parity receipt against the lean4-effect4 source commit |
 | `Effects/` | library declarations and proofs |
+| `Effects/Experimental/` | generic algebra with receipts but no contract; `import Effects` does not reach it |
 | `EffectsTest/` | Lean tests, attacks, and proof receipts |
 
 If two files appear to own the same fact, stop and repair the ownership map.
@@ -45,6 +46,10 @@ lean4-effect4 is the plan of record for this repository.
   results live in the answer universe; there is no implicit universe lift.
 - No third-party Lake dependency. The toolchain, core, and Std are the
   substrate.
+- The library compiles with `autoImplicit` and `relaxedAutoImplicit` off. A
+  new module binds its universes and variables explicitly. The nine
+  `Effects/Algebra/` modules restore both options for one stated reason,
+  `generated/algebra-parity.tsv`, and their headers carry it.
 
 ## Claims
 
@@ -56,9 +61,13 @@ handlers for the same signature do not share theorems merely by sharing it;
 ## Trust gate
 
 `EffectsTest.lean` ends with `#effects_axiom_gate`. The gate walks every
-`.lean` file under `Effects/` and `EffectsTest/`, refuses authored `partial`
-and `unsafe` modifiers, refuses any declaration outside the axiom ceiling,
-and refuses a file the test root does not reach. `Classical.choice` is
+`.lean` file under `Effects/` and `EffectsTest/`, refuses an authored trust
+token — `unsafe`, `partial`, `sorry`, `axiom`, `native_decide`, `extern`,
+`implemented_by`, and `admit` should a toolchain make it a keyword — anywhere
+in the source including inside an `example`, refuses an `opaque` with no body,
+refuses any declaration outside the axiom ceiling, and refuses a file the test
+root does not reach. It is kept in step with lean4-effect4's
+`Effect4Test/Audit/AxiomGate.lean`; a hardening lands in both. `Classical.choice` is
 admitted only in the gate module itself; adding another admission requires an
 authored entry in `docs/CLAIM-BOUNDARY.md` and an exact-module entry in the
 gate, which fails when the entry goes stale.
