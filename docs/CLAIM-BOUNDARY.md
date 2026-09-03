@@ -190,3 +190,58 @@ and this bump claims nothing about when either is correct to emit. In
 particular v0.6.0 adds no around-wrapper producing `Outcome.interrupted`. The
 v0.4.0 and v0.5.0 flow surfaces are unchanged, and the nine algebra modules
 are unchanged.
+
+## v0.7.0: Flow v3, caught failures and value branches
+
+`Effects/Flow/{Block,Raw,Admission}.lean` add two terminators and one
+admission clause (`test/contracts/flow-v3.contract.md`, superseding the
+terminator list and the two edge clauses of `flow-v2.contract.md`).
+
+`performCatch operation request target args onError errorArgs` is a `perform`
+with a failure successor: `successors` is `[target, onError]`, the value edge
+receives `args ++ [answer]` and the failure edge `errorArgs ++ [error]`. The
+two edges therefore carry different lists and different arities, so
+`RawTerm.argsAt` and `RawTerm.arityAt` are keyed by the edge's position in
+`successors`, and `ArityWF`, `SlotWF`, `ArgumentsWF` and the clauses
+`argumentArity` and `argumentTypeMismatch` are stated over that index. The
+value edge keeps `args` and `arity`, and four `rfl` laws (`argsAt_zero`,
+`arityAt_zero`, `argsAt_of_ne_one`, `arityAt_of_ne_one`) make "every v2 shape
+reads as it did" a theorem. `FlowAlphabet` gains `errorTy : Op → Ty`, the
+type of the value bound in the failure successor's last slot.
+
+`branch test site onTrue onFalse args` is taken by the *value* of `test` and
+is still a decision *site*: `isChoose` is true for it and `decision?` names
+`site`, so `CyclesWF` counts a branch loop, `duplicateDecisionId` sees its
+site, and the v0.4.0 tape bound survives verbatim. `FlowAlphabet` gains
+`boolTy : Ty`, the spelling the test operand must carry, checked by the one
+clause v3 adds: `branchTestType`, between `termTypeMismatch` and
+`unknownVariable`, making eighteen ordered clauses. `TermsWF` is five-fold
+(`BranchTestWF` is the fifth). `TermFailureValid` gains
+`performCatchRequestTypeMismatch` and `ArgumentFailureValid` gains
+`catchAnswer` and `catchError`, which type the answer slot and the error slot
+apart.
+
+Every v0.4.0 theorem is retained with its proposition and re-proved over the
+wider carrier: `admit_sound`, `admit_complete`, `error_iff_not_wf`,
+`error_iff_firstDiagnostic`, `admit_error_valid`, `diagnoseAt_some_valid`,
+`FirstDiagnostic.valid` and `condemns`, `clause_all_complete` (now eighteen
+clauses), the erase laws, `FlowWF.reachable_declared`, and `cyclesChoose_iff`.
+The v0.5.0 region layer is unchanged and needs no new rule: it reads
+terminators through `RawTerm.successors`, so a `performCatch`'s failure edge
+is required to carry the block's own label like any other successor. Attacks
+`EF-FLOW-CE-007` (a caught failure unwinds regions) and `EF-FLOW-CE-008` (a
+branch on a value escapes the tape bound).
+
+Not claimed: any run. That a `performCatch` continues at its value successor
+on `.ok` and at its failure successor on `.error`, that its trace is `op` then
+`failed` then the successor's rows and never `done failure`, that a caught
+failure does not unwind a region, and that a `branch` reads the tape entry at
+its site and refuses a run whose tape disagrees with the tested value are the
+design intent this carrier is shaped for and are theorems of lean4-effect4's
+runner and denotation, never of this library. Nor is any error algebra
+claimed: `errorTy` is one type per operation, never read except to compare,
+with no empty type, no error sum, and no relation to a host error; nor any
+boolean semantics for `boolTy`, which is a spelling in the consumer's own
+`Ty` with no inhabitant count and no exhaustiveness claim for the two
+successors. The nine algebra modules, the trace alphabet, and the v0.5.0
+region surface are unchanged.
