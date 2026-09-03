@@ -99,18 +99,18 @@ key on. -/
 #guard RawTerm.arityAt brancher 0 == 1
 #guard RawTerm.arityAt brancher 1 == 1
 
-/-- A `performCatch` names its request before both argument lists; a `branch`
+/-! A `performCatch` names its request before both argument lists; a `branch`
 names its test before its arguments. -/
 #guard RawTerm.operands catcher == [(⟨0⟩ : Var), ⟨0⟩]
 #guard RawTerm.operands brancher == [(⟨1⟩ : Var), ⟨0⟩]
 
-/-- A `performCatch` is not a decision; a `branch` is. -/
+/-! A `performCatch` is not a decision; a `branch` is. -/
 #guard RawTerm.isChoose catcher == false
 #guard RawTerm.isChoose brancher == true
 #guard RawTerm.decision? catcher == (none : Option DecisionId)
 #guard RawTerm.decision? brancher == some (decisionId 0)
 
-/-- Both perform an alphabet operation. -/
+/-! Both perform an alphabet operation. -/
 #guard RawTerm.operation? catcher == some (operationId 1)
 #guard RawTerm.operation? brancher == (none : Option OperationId)
 #guard RawTerm.request? catcher == some (⟨0⟩ : Var)
@@ -379,26 +379,28 @@ def wrongErrorArity : RawFlow TyCode :=
     block 2 [.nat] (.performCatch run ⟨0⟩ (blockId 4) [] (blockId 5) [⟨0⟩]),
     block 3 [.nat] (.ret ⟨0⟩),
     block 4 [.nat] (.ret ⟨0⟩),
-    block 5 [.str] (.ret ⟨0⟩)
+    block 5 [.nat] (.ret ⟨0⟩)
   ]
 
 #guard rejectedWith
   ⟨.argumentArity, .successor (blockId 2) 1, .arity 2 1⟩
   wrongErrorArity
 
-/-- The value edge keeps the answer typing it had as a plain `perform`. -/
+/-- The value edge keeps the answer typing it had as a plain `perform`: the
+caught operation here is `probe`, whose answer is `bool`, so block 4's single
+parameter is read against `answerTy` and not against the block's own `ret`. -/
 def wrongAnswerSlot : RawFlow TyCode :=
   rawFlow [
     block 0 [.nat] (.perform probe ⟨0⟩ (blockId 1) [⟨0⟩]),
     block 1 [.nat, .bool] (.branch ⟨1⟩ (decisionId 0) (blockId 2) (blockId 3) [⟨0⟩]),
-    block 2 [.nat] (.performCatch run ⟨0⟩ (blockId 4) [] (blockId 5) [⟨0⟩]),
+    block 2 [.nat] (.performCatch probe ⟨0⟩ (blockId 4) [] (blockId 5) [⟨0⟩]),
     block 3 [.nat] (.ret ⟨0⟩),
-    block 4 [.str] (.ret ⟨0⟩),
-    block 5 [.nat, .str] (.ret ⟨0⟩)
+    block 4 [.nat] (.ret ⟨0⟩),
+    block 5 [.nat, .unit] (.ret ⟨0⟩)
   ]
 
 #guard rejectedWith
-  ⟨.argumentTypeMismatch, .argument (blockId 2) 0 0, .typeMismatch .nat .str⟩
+  ⟨.argumentTypeMismatch, .argument (blockId 2) 0 0, .typeMismatch .bool .nat⟩
   wrongAnswerSlot
 
 /-- A `performCatch` of an operation outside the alphabet is refused by the
