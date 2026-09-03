@@ -66,4 +66,42 @@ example : (⟨⟨0⟩, [⟨0⟩], ⟨0⟩, (), (),
     , { id := ⟨1⟩, params := [], term := .ret ⟨0⟩ } ]⟩ : RawFlow Unit).reachSet ⟨0⟩ =
     [⟨0⟩, ⟨1⟩] := by decide
 
+/-! ## The region clauses are a structure with a soundness law (finding #36) -/
+
+#check (@regionWF_iff_check :
+  ∀ {Ty : Type uTy} [_inst : DecidableEq Ty] (alphabet : FlowAlphabet Ty)
+      (flow : RegionFlow Ty), RegionWF alphabet flow ↔ flow.check alphabet = none)
+
+/-! The fourteen fields, in `RegionClause` order. Each is a projection a
+consumer applies; none of them mentions `check`. -/
+
+#check @RegionWF.duplicateRegion
+#check @RegionWF.unknownParent
+#check @RegionWF.continueOutside
+#check @RegionWF.continueTyped
+#check @RegionWF.entryInside
+#check @RegionWF.unknownLabel
+#check @RegionWF.retInside
+#check @RegionWF.successorLabel
+#check @RegionWF.enterParent
+#check @RegionWF.enterBody
+#check @RegionWF.acquireOutside
+#check @RegionWF.acquireRelease
+#check @RegionWF.leaveOutside
+#check @RegionWF.leaveTyped
+
+/-- One field per clause: `RegionClause` and `RegionWF` have the same arity. -/
+example : ([ .duplicateRegion, .unknownParent, .continueOutside, .continueTyped
+           , .unknownLabel, .entryInside, .successorLabel, .enterParent
+           , .enterBody, .acquireOutside, .acquireRelease, .leaveOutside
+           , .leaveTyped, .retInside ] : List RegionClause).length = 14 := rfl
+
+/-! `TargetsLabelled` is the Prop a consumer reads instead of the Bool, and
+`targetsLabelled_iff` is the bridge. -/
+
+#check (@RegionFlow.targetsLabelled_iff :
+  ∀ {Ty : Type uTy} [_inst : DecidableEq Ty] {flow : RegionFlow Ty}
+      {label : Option RegionId} {targets : List BlockId},
+    flow.targetsLabelled label targets = true ↔ flow.TargetsLabelled label targets)
+
 end EffectsTest.Flow.BoundaryContract
