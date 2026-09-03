@@ -8,9 +8,3 @@
 #
 # Removing the last entry restores the original all-green control.
 #
-# Flow v2 packet (test/contracts/flow-v2.contract.md), breaker 2026-09-02.
-# Red until the builder lands the parameterised carrier, the cycle clause,
-# and the four new admission clauses; the builder removes these three lines.
-EffectsTest.Flow.FlowV2Contract
-EffectsTest.Flow.FlowV2AxiomReport
-EffectsTest.Counterexamples.Flow.FlowV2

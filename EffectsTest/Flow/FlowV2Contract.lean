@@ -917,8 +917,12 @@ example {raw : RawFlow TyCode} :
     EntryWF raw ↔
       (match lookupBlock raw raw.entry with
         | none => False
-        | some block => RawBlock.params block = [raw.inputTy]) :=
-  Iff.rfl
+        | some block => RawBlock.params block = [raw.inputTy]) := by
+  -- Elaboration repair: the battery's `match` over the concrete `TyCode` mints its own
+  -- matcher, which Lean does not identify with `EntryWF`'s generic one until the
+  -- discriminant is a constructor. The statement is unchanged.
+  unfold EntryWF
+  cases lookupBlock raw raw.entry <;> exact Iff.rfl
 
 /-- `EdgeNoChoose`: a declared edge whose source block is not a `choose`. -/
 example {raw : RawFlow TyCode} {source target : BlockId} :

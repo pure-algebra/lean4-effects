@@ -114,3 +114,29 @@ alphabet is a downstream, executable judgment under a named mask, and it is
 stated in lean4-effect4 (`docs/TRACE-DAG.md`), never here. The module
 traverses no `String`; rendering a trace to a wire form is a consumer's
 admission.
+
+## v0.4.0: first-order flows with block parameters
+
+`Effects/Flow/{Block,Raw,Admission,Checked}.lean` re-freeze the flow admission
+packet (`test/contracts/flow-v2.contract.md`, superseding the v1
+`flow-admission` packet moved here in v0.2.0). A block now declares a
+parameter list; a terminator names its operands by position (`Var`); `jump`
+and `choose` pass argument lists; `perform` passes its arguments plus the
+operation's answer. Admission has seventeen ordered clauses: the thirteen v1
+clauses (operand typing is now `termTypeMismatch`) and `unknownVariable`,
+`argumentArity`, `argumentTypeMismatch`, `unchosenCycle`. The last is the one
+global clause: every cycle of the successor graph passes through a `choose`
+(`CyclesWF`), decided by the kernel-computable `cyclesChoose` with its law
+`cyclesChoose_iff`, so a finite decision tape bounds every run of an admitted
+flow. Retained: `admit_sound`, `admit_complete`, `error_iff_not_wf`,
+`error_iff_firstDiagnostic`, `admit_error_valid`, `diagnoseAt_some_valid`,
+`FirstDiagnostic.valid` and `condemns`, `clause_all_complete`, the erase laws,
+and `FlowWF.reachable_declared`. Attacks `EF-FLOW-CE-001..003`
+(`test/counterexamples/flow/ATTACKS.md`). Sixteen named theorems have axiom
+receipts in `EffectsTest/Flow/FlowV2AxiomReport.lean`; the union is
+`propext` and `Quot.sound` (`reachable_declared`, `erase_wf`,
+`CheckedFlow.erase_eq_raw`, and `CheckedFlow.ext` need only `propext`).
+
+Not claimed: any run of a flow (the runner, its frontier, and the decision
+tape live in lean4-effect4); regions and finalizers (a later bump); any
+relation between a flow and a program, a trace, or a host.
