@@ -14,7 +14,16 @@ traversed in this module (rendering lives in a consumer).
 
 Masks are projections: `project mask` is a filter, `m1` keeps operations,
 answers, failures and the outcome, `m2` keeps everything. Agreement between two
-emitters is always stated under a named mask.
+emitters is always stated under a named mask. A mask decides on an event's
+*kind* alone, so widening `Outcome` leaves `Mask.keeps` and every projection
+law untouched (v0.6.0: `Outcome.defect` is kept exactly where the outcome it
+annotates was already kept).
+
+An outcome is `success`, `failure`, `defect` or `interrupted`. This library
+produces only the first two: the traced services emit `op`, `answer` and
+`failed` rows, and their `done`/`leave`/`finalizer` outcomes are supplied by a
+caller. `defect` and `interrupted` are here so that a downstream runner or a
+host bridge has a place to land, and they carry no law in this module.
 
 The one law is `Family.Service.interpret_traced_fst`: forgetting the log of a
 traced service recovers the plain interpretation. It is an around-wrapper, not a
@@ -58,12 +67,41 @@ instance [ToVal α] : ToVal (List α) :=
 instance [ToVal ε] [ToVal α] : ToVal (Except ε α) :=
   ⟨fun | .error e => .pair (.bool false) (ToVal.toVal e) | .ok a => .pair (.bool true) (ToVal.toVal a)⟩
 
-/-- How a program, a region body, or a finalizer ended. -/
+/-- How a program, a region body, or a finalizer ended. `failure` is the
+typed, recoverable error of the program's own error channel; `defect` is a
+host defect (an rc.112 `Die`), a distinct constructor because a defect that
+renders as a failure is indistinguishable from a failure carrying the same
+payload (`EF-TRACE-CE-004`). Neither `defect` nor `interrupted` has a producer
+in this library: `Family.Service.traced` and `Family.Service.tracedExcept`
+emit only `op`, `answer` and `failed`, and the two constructors exist for
+runners and bridges downstream to land in. -/
 inductive Outcome (υ : Type u) : Type u
   | success (value : υ)
   | failure (error : υ)
+  | defect (error : υ)
   | interrupted
 deriving DecidableEq, Repr
+
+namespace Outcome
+
+/-- Re-encode the payload of an outcome. No `ToVal` is involved: the payload
+universe is arbitrary, and the frame-simulation projection needs to move an
+outcome along a payload encoding without committing to a wire form. -/
+def map {υ : Type u} {ν : Type v} (encode : υ → ν) : Outcome υ → Outcome ν
+  | .success value => .success (encode value)
+  | .failure error => .failure (encode error)
+  | .defect error => .defect (encode error)
+  | .interrupted => .interrupted
+
+@[simp] theorem map_id {υ : Type u} (outcome : Outcome υ) : outcome.map id = outcome := by
+  cases outcome <;> rfl
+
+theorem map_comp {υ : Type u} {ν : Type v} {ξ : Type w}
+    (second : ν → ξ) (first : υ → ν) (outcome : Outcome υ) :
+    (outcome.map first).map second = outcome.map (second ∘ first) := by
+  cases outcome <;> rfl
+
+end Outcome
 
 /-- One observation. `ω` names operations, `υ` carries values, `δ` names
 decision sites, `ρ` names regions. -/

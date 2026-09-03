@@ -156,3 +156,37 @@ Packet: `test/contracts/flow-regions.contract.md`; attacks `EF-FLOW-CE-004..006`
 Not claimed: any run of a region flow, the order and the exits its releases
 observe, or any relation to a host scope; those are lean4-effect4's
 (`docs/TRACE-DAG.md`, packet P-T7). The v0.4.0 surface is unchanged.
+
+## v0.6.0: the trace alphabet re-frozen with `Outcome.defect`
+
+`Effects/Trace.lean` widens `Trace.Outcome` by one constructor,
+`defect (error : υ)`: a host defect (an rc.112 `Die`), distinct from
+`failure`, which is the program's own typed error channel. It also adds
+`Outcome.map`, a payload re-encoding with independent payload universes and no
+`ToVal` in its signature, with `Outcome.map_id` and `Outcome.map_comp` (both
+axiom-free). Packet: `test/contracts/trace.contract.md`, re-frozen with a
+version note; attack `EF-TRACE-CE-004`, "a defect rendered as a failure".
+
+`Trace.Event` and `Trace.Mask` are unchanged in shape, and every v0.3.x law is
+retained with the same proposition and the same proof: `Mask.keeps` matches on
+an event's *kind* and never on the outcome an event carries, so `Mask.m2_keeps`,
+`project_project`, `project_m2`, `project_m1_m2` and `agree_of_agree_m2` are
+untouched, and `Handler.Projects`, `interpret_projects_fst`,
+`Family.Service.traced_projects`, `Family.Service.interpret_traced_fst`,
+`Family.Service.traced_perform`, `Handler.ProjectsExcept`,
+`interpret_projectsExcept_fst`, `Family.Service.tracedExcept_projects` and
+`Family.Service.interpret_tracedExcept_fst` never mention `Outcome` at all.
+`EffectsTest/Trace/TraceContract.lean` carries the executable receipt that
+every mask in the packet keeps and drops `done`, `leave` and `finalizer`
+identically for all four outcomes.
+
+Not claimed: any producer for `defect` or `interrupted`. Nothing in this
+library constructs either constructor; the traced services emit `op`, `answer`
+and `failed` rows only, and the outcomes carried by `done`, `leave` and
+`finalizer` are supplied by a caller. `defect` and `interrupted` are produced
+only by runners and bridges downstream (lean4-effect4's flow and region
+runners, and the host bridge in `Effect4/Target/TypeScript/Simulation.lean`),
+and this bump claims nothing about when either is correct to emit. In
+particular v0.6.0 adds no around-wrapper producing `Outcome.interrupted`. The
+v0.4.0 and v0.5.0 flow surfaces are unchanged, and the nine algebra modules
+are unchanged.

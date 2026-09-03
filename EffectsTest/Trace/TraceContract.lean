@@ -14,7 +14,7 @@ namespace EffectsTest.Trace.TraceContract
 open Effects
 open Effects.Trace
 
-universe u t
+universe u v t
 
 section SurfaceSnapshot
 
@@ -32,7 +32,16 @@ variable (ω υ δ ρ : Type u)
 
 #check (@Outcome.success : {υ : Type u} → υ → Outcome υ)
 #check (@Outcome.failure : {υ : Type u} → υ → Outcome υ)
+#check (@Outcome.defect : {υ : Type u} → υ → Outcome υ)
 #check (@Outcome.interrupted : {υ : Type u} → Outcome υ)
+
+-- v0.6.0. `Outcome.map` re-encodes the payload with no `ToVal` in sight; the
+-- payload universes are independent.
+#check (@Outcome.map : {υ : Type u} → {ν : Type v} → (υ → ν) → Outcome υ → Outcome ν)
+#check (@Outcome.map_id : ∀ {υ : Type u} (outcome : Outcome υ), outcome.map id = outcome)
+#check (@Outcome.map_comp : ∀ {υ : Type u} {ν : Type v} {ξ : Type u}
+  (second : ν → ξ) (first : υ → ν) (outcome : Outcome υ),
+  (outcome.map first).map second = outcome.map (second ∘ first))
 
 #check (@Mask.mk : Bool → Bool → Bool → Bool → Bool → Bool → Bool → Mask)
 #check (@Mask.keeps : {ω υ δ ρ : Type u} → Mask → Event ω υ δ ρ → Bool)
@@ -142,5 +151,63 @@ example :
       ([ .op CellName.get .unit, .answer CellName.get (.nat 41), .done (.success (.nat 41)) ]
         : List CellEvent) =
       [ .done (.success (.nat 41)) ] := by decide
+
+/-! ## v0.6.0 receipts: the new constructor and the mask's blindness to it -/
+
+/-- A defect is not a failure carrying the same payload. -/
+example : (Outcome.defect (Val.str "boom") : Outcome Val) ≠ .failure (.str "boom") := by decide
+
+/-- Nor is it a success or an interruption. -/
+example :
+    (Outcome.defect (Val.str "boom") : Outcome Val) ≠ .success (.str "boom") ∧
+      (Outcome.defect (Val.str "boom") : Outcome Val) ≠ .interrupted := by decide
+
+/-- `Mask.keeps` decides on the event's kind, so it cannot see which outcome a
+`done`, a `leave` or a `finalizer` carries: the four outcomes are kept and
+dropped together under every mask in the packet. -/
+example :
+    ([Mask.outcomeOnly, Mask.m1, Mask.m2].all fun mask =>
+      ([ Outcome.success Val.unit, .failure .unit, .defect .unit, .interrupted ]
+          : List (Outcome Val)).all fun outcome =>
+        (mask.keeps (Event.done outcome : CellEvent) ==
+            mask.keeps (Event.done (Outcome.success Val.unit) : CellEvent) &&
+          mask.keeps (Event.leave () outcome : CellEvent) ==
+            mask.keeps (Event.leave () (Outcome.success Val.unit) : CellEvent) &&
+          mask.keeps (Event.finalizer () outcome : CellEvent) ==
+            mask.keeps (Event.finalizer () (Outcome.success Val.unit) : CellEvent)))
+      = true := by decide
+
+/-- The projection laws hold on a trace that carries a defect: `m2` keeps it,
+`m1` and `outcomeOnly` keep the `done` row it annotates, and projecting twice
+is projecting once. -/
+def defectTrace : List CellEvent :=
+  [ .op CellName.get .unit, .answer CellName.get (.nat 41)
+  , .decide () true, .enter (), .finalizer () (.defect (.str "boom"))
+  , .leave () (.defect (.str "boom")), .done (.defect (.str "boom")) ]
+
+example : project Mask.m2 defectTrace = defectTrace := by decide
+
+example : project Mask.m2 (project Mask.m2 defectTrace) = project Mask.m2 defectTrace := by decide
+
+example : project Mask.m1 (project Mask.m2 defectTrace) = project Mask.m1 defectTrace := by decide
+
+example :
+    project Mask.outcomeOnly defectTrace = [ .done (.defect (.str "boom")) ] := by decide
+
+/-- `Outcome.map` moves a payload along an encoding, constructor by
+constructor. -/
+example :
+    ([ Outcome.success 41, .failure 7, .defect 9, .interrupted ].map
+      (Outcome.map (fun n : Nat => Val.nat n)))
+      = [ .success (.nat 41), .failure (.nat 7), .defect (.nat 9), .interrupted ] := by decide
+
+/-- `map_id` and `map_comp`, instantiated. -/
+example : (Outcome.defect (Val.str "boom")).map id = Outcome.defect (Val.str "boom") :=
+  Outcome.map_id _
+
+example :
+    ((Outcome.defect (7 : Nat)).map (fun n => n + 1)).map (fun n : Nat => Val.nat n) =
+      (Outcome.defect (7 : Nat)).map ((fun n : Nat => Val.nat n) ∘ (fun n => n + 1)) :=
+  Outcome.map_comp _ _ _
 
 end EffectsTest.Trace.TraceContract

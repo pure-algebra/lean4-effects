@@ -5,7 +5,7 @@ import EffectsTest.Family.TowerSmoke
 /-!
 # Trace attacks
 
-Witnesses for `EF-TRACE-CE-001` through `EF-TRACE-CE-003` in
+Witnesses for `EF-TRACE-CE-001` through `EF-TRACE-CE-004` in
 `test/counterexamples/REGISTER.md`; attack shapes in
 `test/counterexamples/trace/ATTACKS.md`.
 -/
@@ -82,6 +82,46 @@ def decided : List CellEvent :=
 theorem agreement_is_per_mask :
     project Mask.m1 bare = project Mask.m1 decided ∧ bare ≠ decided ∧
       project Mask.m2 bare ≠ project Mask.m2 decided := by
+  decide
+
+/-! ## `EF-TRACE-CE-004` — a defect rendered as a failure
+
+The v0.5.0 alphabet had no `defect`, so every face that met a host `Die` had to
+choose an existing constructor. Choosing `failure` is the collapse this row
+freezes: it is exactly what the rc.112 tracer did, rendering a die as
+`{"failure":[]}`, byte-identical to a unit failure. The collapse is stated here
+as an endomorphism of the alphabet, so no `String` is traversed and the row
+stands without a renderer. -/
+
+/-- The v0.5.0 choice: report a defect as a failure with the same payload. -/
+def squashDefect : Outcome Val → Outcome Val
+  | .defect error => .failure error
+  | other => other
+
+/-- Lifted to an event: only the outcome an event carries is rewritten. -/
+def squashEvent : CellEvent → CellEvent
+  | .done outcome => .done (squashDefect outcome)
+  | .leave region outcome => .leave region (squashDefect outcome)
+  | .finalizer region outcome => .finalizer region (squashDefect outcome)
+  | other => other
+
+def died : List CellEvent :=
+  [ .op CellName.get .unit, .answer CellName.get (.nat 41), .done (.defect (.str "boom")) ]
+
+def failed : List CellEvent :=
+  [ .op CellName.get .unit, .answer CellName.get (.nat 41), .done (.failure (.str "boom")) ]
+
+/-- `EF-TRACE-CE-004`. A defect and a failure carrying the same payload become
+one trace under the collapse, and they do so under *every* mask in the packet,
+`outcomeOnly` included: no projection can recover the distinction, because a
+mask sees an event's kind and never the outcome it carries. The two traces are
+distinct in the v0.6.0 alphabet, so the collapse loses information that the
+alphabet holds. -/
+theorem a_defect_rendered_as_a_failure :
+    died.map squashEvent = failed.map squashEvent ∧
+      died ≠ failed ∧
+      ([Mask.outcomeOnly, Mask.m1, Mask.m2].all fun mask =>
+        project mask died != project mask failed) = true := by
   decide
 
 end EffectsTest.Counterexamples.Trace
