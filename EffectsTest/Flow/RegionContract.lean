@@ -39,6 +39,8 @@ def alphabet : FlowAlphabet String where
   lookup id := if h : id.value < table.length then some ⟨id.value, h⟩ else none
   requestTy op := table[op].1
   answerTy op := table[op].2
+  errorTy _ := "string"
+  boolTy := "boolean"
   lookup_operationId := by
     intro op
     simp [op.isLt]

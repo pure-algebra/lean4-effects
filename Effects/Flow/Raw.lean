@@ -84,9 +84,9 @@ def ReferencesWF (raw : RawFlow Ty) : Prop :=
 
 /-- A performed operation belongs to the alphabet. -/
 def OperationWF (alphabet : FlowAlphabet Ty) (block : RawBlock Ty) : Prop :=
-  match block.term with
-  | .perform operation _ _ _ => (alphabet.lookup operation).isSome = true
-  | _ => True
+  match block.term.operation? with
+  | some operation => (alphabet.lookup operation).isSome = true
+  | none => True
 
 /-- Every performed operation in every declared block belongs to the alphabet. -/
 def OperationsWF (alphabet : FlowAlphabet Ty) (raw : RawFlow Ty) : Prop :=
@@ -99,30 +99,33 @@ def EntryWF (raw : RawFlow Ty) : Prop :=
   | none => False
   | some block => block.params = [raw.inputTy]
 
-/-! ## The four term clauses -/
+/-! ## The five term clauses -/
 
 /-- Every operand of a block names one of its parameters. -/
 def RawBlock.VarsWF (block : RawBlock Ty) : Prop :=
   ∀ v, v ∈ block.term.operands → v.index < block.params.length
 
 /-- Every resolving successor declares exactly as many parameters as the
-terminator supplies. -/
+terminator supplies *on that edge*. Flow v3: the edge is named by its position
+in `successors`, because a `performCatch`'s two edges have different arities. -/
 def ArityWF (raw : RawFlow Ty) (block : RawBlock Ty) : Prop :=
-  ∀ target, target ∈ block.term.successors →
+  ∀ (edge : Nat) (target : BlockId), block.term.successors[edge]? = some target →
     match lookupBlock raw target with
     | none => True
-    | some targetBlock => targetBlock.params.length = block.term.arity
+    | some targetBlock => targetBlock.params.length = block.term.arityAt edge
 
 /-- One value position on one successor edge is well typed: an argument's
-parameter type equals the declared type at that position, and a `perform`'s
-answer slot equals the operation's answer type. Guarded by resolution,
-arity, variable range, and operation closure, which other clauses own. -/
+parameter type equals the declared type at that position; a `perform`'s answer
+slot equals the operation's answer type; a `performCatch`'s value edge ends in
+the answer type and its failure edge in the operation's declared error type.
+Guarded by resolution, arity, variable range, and operation closure, which
+other clauses own. -/
 def SlotWF (alphabet : FlowAlphabet Ty) (raw : RawFlow Ty) (block : RawBlock Ty)
-    (target : BlockId) (slot : Nat) : Prop :=
+    (edge : Nat) (target : BlockId) (slot : Nat) : Prop :=
   match lookupBlock raw target with
   | none => True
   | some targetBlock =>
-    match block.term.args[slot]? with
+    match (block.term.argsAt edge)[slot]? with
     | some argument =>
         match block.params[argument.index]?, targetBlock.params[slot]? with
         | some supplied, some declared => supplied = declared
@@ -135,15 +138,30 @@ def SlotWF (alphabet : FlowAlphabet Ty) (raw : RawFlow Ty) (block : RawBlock Ty)
               | some operationDef, some declared => alphabet.answerTy operationDef = declared
               | _, _ => True
             else True
+        | .performCatch operation _ valueTarget args errorTarget errorArgs =>
+            if edge = 1 then
+              if slot = errorArgs.length ∧ errorTarget = target then
+                match alphabet.lookup operation, targetBlock.params[slot]? with
+                | some operationDef, some declared => alphabet.errorTy operationDef = declared
+                | _, _ => True
+              else True
+            else
+              if slot = args.length ∧ valueTarget = target then
+                match alphabet.lookup operation, targetBlock.params[slot]? with
+                | some operationDef, some declared => alphabet.answerTy operationDef = declared
+                | _, _ => True
+              else True
         | _ => True
 
 /-- Every position of every successor edge of a block is well typed. -/
 def ArgumentsWF (alphabet : FlowAlphabet Ty) (raw : RawFlow Ty) (block : RawBlock Ty) : Prop :=
-  ∀ target, target ∈ block.term.successors →
-    ∀ slot, slot ∈ List.range block.term.arity → SlotWF alphabet raw block target slot
+  ∀ (edge : Nat) (target : BlockId), block.term.successors[edge]? = some target →
+    ∀ slot, slot ∈ List.range (block.term.arityAt edge) →
+      SlotWF alphabet raw block edge target slot
 
-/-- A `ret` returns the document result type and a `perform` request has the
-operation's request type, guarded by variable range and operation closure. -/
+/-- A `ret` returns the document result type and a `perform` or `performCatch`
+request has the operation's request type, guarded by variable range and
+operation closure. -/
 def OperandsWF (alphabet : FlowAlphabet Ty) (raw : RawFlow Ty) (block : RawBlock Ty) : Prop :=
   match block.term with
   | .ret value =>
@@ -154,15 +172,33 @@ def OperandsWF (alphabet : FlowAlphabet Ty) (raw : RawFlow Ty) (block : RawBlock
       match alphabet.lookup operation, block.params[request.index]? with
       | some operationDef, some actual => actual = alphabet.requestTy operationDef
       | _, _ => True
+  | .performCatch operation request _ _ _ _ =>
+      match alphabet.lookup operation, block.params[request.index]? with
+      | some operationDef, some actual => actual = alphabet.requestTy operationDef
+      | _, _ => True
   | _ => True
 
-/-- Every declared block satisfies the four term clauses: variables in range,
-successor arity, argument and answer types, and operand types. -/
+/-- Flow v3's own operand clause: a `branch` tests a value of the alphabet's
+boolean spelling. It is separate from `OperandsWF` because it is the one
+operand check made against the *alphabet's* own type vocabulary rather than
+against the flow's declared types or an operation's row. -/
+def BranchTestWF (alphabet : FlowAlphabet Ty) (block : RawBlock Ty) : Prop :=
+  match block.term with
+  | .branch test _ _ _ _ =>
+      match block.params[test.index]? with
+      | some actual => actual = alphabet.boolTy
+      | none => True
+  | _ => True
+
+/-- Every declared block satisfies the five term clauses: variables in range,
+successor arity, argument and answer types, operand types, and the branch
+test's boolean spelling. -/
 def TermsWF (alphabet : FlowAlphabet Ty) (raw : RawFlow Ty) : Prop :=
   (∀ block, block ∈ raw.blocks → block.VarsWF) ∧
   (∀ block, block ∈ raw.blocks → ArityWF raw block) ∧
   (∀ block, block ∈ raw.blocks → ArgumentsWF alphabet raw block) ∧
-  (∀ block, block ∈ raw.blocks → OperandsWF alphabet raw block)
+  (∀ block, block ∈ raw.blocks → OperandsWF alphabet raw block) ∧
+  (∀ block, block ∈ raw.blocks → BranchTestWF alphabet block)
 
 /-! ## The cycle clause -/
 

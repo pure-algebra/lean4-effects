@@ -34,6 +34,8 @@ open Effects
 inductive TyCode where
   | nat
   | unit
+  /-- Flow v3: the spelling `FlowAlphabet.boolTy` names. -/
+  | bool
 deriving DecidableEq, Repr
 
 inductive ExampleOp where
@@ -65,6 +67,8 @@ def ExampleAlphabet : FlowAlphabet TyCode where
   answerTy
     | .get => .nat
     | .put => .unit
+  errorTy _ := .unit
+  boolTy := .bool
   lookup_operationId := by
     intro operation
     cases operation <;> rfl

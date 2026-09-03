@@ -12,6 +12,15 @@ blocks with parameter lists. Operand typing is `termTypeMismatch`; edge typing
 is `argumentArity` then `argumentTypeMismatch` (positional, per successor);
 variable range is `unknownVariable`; the global cycle clause is
 `unchosenCycle`, decided by `cyclesChoose`.
+
+Flow v3 (`test/contracts/flow-v3.contract.md`) makes that eighteen. One clause
+is new — `branchTestType`, that a `branch` tests the alphabet's boolean
+spelling — and two are generalised: `argumentArity` and `argumentTypeMismatch`
+now read the arity and the argument list *of the edge*, keyed by its position
+in `RawTerm.successors`, so a `performCatch`'s value and failure successors are
+checked against their own lists. Every other clause is textually unchanged and
+extends to the two new terminators through `successors`, `operands`,
+`decision?` and `isChoose`.
 -/
 
 namespace Effects
@@ -31,6 +40,8 @@ inductive AdmissionClause where
   | unknownOperation
   | entryTypeMismatch
   | termTypeMismatch
+  /-- Flow v3: a `branch` tests a value that is not the alphabet's boolean. -/
+  | branchTestType
   | unknownVariable
   | argumentArity
   | argumentTypeMismatch
@@ -49,7 +60,8 @@ inductive CheckSite where
   | term (block : BlockId)
   /-- Position `index` of the value list flowing along successor edge
   `successor` (a position in `RawTerm.successors`) of `block`; for `perform`,
-  index `args.length` is the answer slot. -/
+  index `args.length` is the answer slot, and for a `performCatch`'s failure
+  edge index `errorArgs.length` is the error slot. -/
   | argument (block : BlockId) (successor index : Nat)
 deriving DecidableEq, Repr
 
@@ -105,21 +117,43 @@ inductive TermFailureValid
       (mismatch : actual ≠ alphabet.requestTy operationDef) :
       TermFailureValid alphabet raw block
         (.typeMismatch (alphabet.requestTy operationDef) actual)
+  | performCatchRequestTypeMismatch {operation : OperationId} {request : Var}
+      {target : BlockId} {args : List Var} {onError : BlockId} {errorArgs : List Var}
+      {operationDef : alphabet.Op} {actual : Ty}
+      (term : block.term = .performCatch operation request target args onError errorArgs)
+      (known : alphabet.lookup operation = some operationDef)
+      (typed : block.params[request.index]? = some actual)
+      (mismatch : actual ≠ alphabet.requestTy operationDef) :
+      TermFailureValid alphabet raw block
+        (.typeMismatch (alphabet.requestTy operationDef) actual)
+
+/-- The branch-test failure of one block (clause `branchTestType`, Flow v3),
+guarded by variable range. -/
+inductive BranchFailureValid
+    (alphabet : FlowAlphabet Ty) (block : RawBlock Ty) : DiagnosticPayload Ty → Prop where
+  | testTypeMismatch {test : Var} {site : DecisionId} {onTrue onFalse : BlockId}
+      {args : List Var} {actual : Ty}
+      (term : block.term = .branch test site onTrue onFalse args)
+      (typed : block.params[test.index]? = some actual)
+      (mismatch : actual ≠ alphabet.boolTy) :
+      BranchFailureValid alphabet block (.typeMismatch alphabet.boolTy actual)
 
 /-- Positional typing failures on one successor edge of one block (clause
 `argumentTypeMismatch`), guarded by resolution, arity, variable range, and
-operation closure. -/
+operation closure. Flow v3: the edge is named by its position in
+`RawTerm.successors`, so a `performCatch`'s two lists are checked apart. -/
 inductive ArgumentFailureValid
     (alphabet : FlowAlphabet Ty) (raw : RawFlow Ty)
-    (block : RawBlock Ty) (target : BlockId) : Nat → DiagnosticPayload Ty → Prop where
+    (block : RawBlock Ty) (edge : Nat) (target : BlockId) :
+    Nat → DiagnosticPayload Ty → Prop where
   | argument {targetBlock : RawBlock Ty} {position : Nat} {argument : Var}
       {supplied declared : Ty}
       (found : lookupBlock raw target = some targetBlock)
-      (argumentAt : block.term.args[position]? = some argument)
+      (argumentAt : (block.term.argsAt edge)[position]? = some argument)
       (suppliedAt : block.params[argument.index]? = some supplied)
       (declaredAt : targetBlock.params[position]? = some declared)
       (mismatch : supplied ≠ declared) :
-      ArgumentFailureValid alphabet raw block target position
+      ArgumentFailureValid alphabet raw block edge target position
         (.typeMismatch supplied declared)
   | answer {operation : OperationId} {request : Var} {args : List Var}
       {operationDef : alphabet.Op} {targetBlock : RawBlock Ty} {declared : Ty}
@@ -128,8 +162,30 @@ inductive ArgumentFailureValid
       (found : lookupBlock raw target = some targetBlock)
       (declaredAt : targetBlock.params[args.length]? = some declared)
       (mismatch : alphabet.answerTy operationDef ≠ declared) :
-      ArgumentFailureValid alphabet raw block target args.length
+      ArgumentFailureValid alphabet raw block edge target args.length
         (.typeMismatch (alphabet.answerTy operationDef) declared)
+  | catchAnswer {operation : OperationId} {request : Var} {args : List Var}
+      {onError : BlockId} {errorArgs : List Var}
+      {operationDef : alphabet.Op} {targetBlock : RawBlock Ty} {declared : Ty}
+      (term : block.term = .performCatch operation request target args onError errorArgs)
+      (valueEdge : ¬ edge = 1)
+      (known : alphabet.lookup operation = some operationDef)
+      (found : lookupBlock raw target = some targetBlock)
+      (declaredAt : targetBlock.params[args.length]? = some declared)
+      (mismatch : alphabet.answerTy operationDef ≠ declared) :
+      ArgumentFailureValid alphabet raw block edge target args.length
+        (.typeMismatch (alphabet.answerTy operationDef) declared)
+  | catchError {operation : OperationId} {request : Var} {valueTarget : BlockId}
+      {args : List Var} {errorArgs : List Var}
+      {operationDef : alphabet.Op} {targetBlock : RawBlock Ty} {declared : Ty}
+      (term : block.term = .performCatch operation request valueTarget args target errorArgs)
+      (errorEdge : edge = 1)
+      (known : alphabet.lookup operation = some operationDef)
+      (found : lookupBlock raw target = some targetBlock)
+      (declaredAt : targetBlock.params[errorArgs.length]? = some declared)
+      (mismatch : alphabet.errorTy operationDef ≠ declared) :
+      ArgumentFailureValid alphabet raw block edge target errorArgs.length
+        (.typeMismatch (alphabet.errorTy operationDef) declared)
 
 namespace Diagnostic
 
@@ -151,11 +207,10 @@ inductive Valid (alphabet : FlowAlphabet Ty) (raw : RawFlow Ty) :
       {decision : DecisionId}
       (first : FirstFailureAt raw.blocks
         (fun candidateIndex candidate reported =>
-          ∃ (left right : BlockId) (args : List Var),
-            candidate.term = .choose reported left right args ∧
-            reported ∈
-              (raw.blocks.take candidateIndex).filterMap
-                (fun prior => RawTerm.decision? prior.term))
+          candidate.term.decision? = some reported ∧
+          reported ∈
+            (raw.blocks.take candidateIndex).filterMap
+              (fun prior => RawTerm.decision? prior.term))
         index block decision) :
       Valid alphabet raw
         ⟨.duplicateDecisionId, .decision block.id, .decision decision⟩
@@ -210,9 +265,8 @@ inductive Valid (alphabet : FlowAlphabet Ty) (raw : RawFlow Ty) :
       {operation : OperationId}
       (first : FirstFailureAt raw.blocks
         (fun _ candidate reported =>
-          ∃ (request : Var) (target : BlockId) (args : List Var),
-            candidate.term = .perform reported request target args ∧
-            alphabet.lookup reported = none)
+          candidate.term.operation? = some reported ∧
+          alphabet.lookup reported = none)
         index block operation) :
       Valid alphabet raw
         ⟨.unknownOperation, .operation block.id, .operation operation⟩
@@ -235,6 +289,13 @@ inductive Valid (alphabet : FlowAlphabet Ty) (raw : RawFlow Ty) :
           TermFailureValid alphabet raw candidate failure)
         index block payload) :
       Valid alphabet raw ⟨.termTypeMismatch, .term block.id, payload⟩
+  | branchTestType {index : Nat} {block : RawBlock Ty}
+      {payload : DiagnosticPayload Ty}
+      (first : FirstFailureAt raw.blocks
+        (fun _ candidate failure =>
+          BranchFailureValid alphabet candidate failure)
+        index block payload) :
+      Valid alphabet raw ⟨.branchTestType, .term block.id, payload⟩
   | unknownVariable {blockIndex operandIndex : Nat} {block : RawBlock Ty} {unknown : Var}
       (first : FirstFailureAt raw.blocks
         (fun _ candidate witness =>
@@ -249,24 +310,25 @@ inductive Valid (alphabet : FlowAlphabet Ty) (raw : RawFlow Ty) :
       (first : FirstFailureAt raw.blocks
         (fun _ candidate witness =>
           FirstFailureAt candidate.term.successors
-            (fun _ successor reported =>
+            (fun edgeIndex successor reported =>
               ∃ targetBlock : RawBlock Ty,
                 lookupBlock raw successor = some targetBlock ∧
                 targetBlock.params.length = reported ∧
-                reported ≠ candidate.term.arity)
+                reported ≠ candidate.term.arityAt edgeIndex)
             witness.1 witness.2.1 witness.2.2)
         blockIndex block (successorIndex, target, declared)) :
       Valid alphabet raw
-        ⟨.argumentArity, .successor block.id successorIndex, .arity block.term.arity declared⟩
+        ⟨.argumentArity, .successor block.id successorIndex,
+          .arity (block.term.arityAt successorIndex) declared⟩
   | argumentTypeMismatch {blockIndex successorIndex position : Nat}
       {block : RawBlock Ty} {target : BlockId} {payload : DiagnosticPayload Ty}
       (first : FirstFailureAt raw.blocks
         (fun _ candidate witness =>
           FirstFailureAt candidate.term.successors
-            (fun _ successor edge =>
-              FirstFailureAt (List.range candidate.term.arity)
+            (fun edgeIndex successor edge =>
+              FirstFailureAt (List.range (candidate.term.arityAt edgeIndex))
                 (fun _ slot failure =>
-                  ArgumentFailureValid alphabet raw candidate successor slot failure)
+                  ArgumentFailureValid alphabet raw candidate edgeIndex successor slot failure)
                 edge.1 edge.1 edge.2)
             witness.1 witness.2.1 witness.2.2)
         blockIndex block (successorIndex, target, (position, payload))) :
@@ -298,6 +360,7 @@ def scan : List AdmissionClause := [
   .unknownOperation,
   .entryTypeMismatch,
   .termTypeMismatch,
+  .branchTestType,
   .unknownVariable,
   .argumentArity,
   .argumentTypeMismatch,
@@ -342,6 +405,8 @@ private def ClauseHolds
   | .entryTypeMismatch => EntryWF raw
   | .termTypeMismatch =>
       ∀ block, block ∈ raw.blocks → OperandsWF alphabet raw block
+  | .branchTestType =>
+      ∀ block, block ∈ raw.blocks → BranchTestWF alphabet block
   | .unknownVariable => ∀ block, block ∈ raw.blocks → block.VarsWF
   | .argumentArity => ∀ block, block ∈ raw.blocks → ArityWF raw block
   | .argumentTypeMismatch =>
@@ -594,44 +659,37 @@ private theorem duplicateBlockFailure?_eq_some_iff
 
 private def duplicateDecisionFailure? (raw : RawFlow Ty)
     (index : Nat) (block : RawBlock Ty) : Option DecisionId :=
-  match block.term with
-  | .choose decision _ _ _ =>
+  match block.term.decision? with
+  | some decision =>
       if decision ∈ (raw.blocks.take index).filterMap (fun prior => prior.term.decision?) then
         some decision
       else
         none
-  | _ => none
+  | none => none
 
 private theorem duplicateDecisionFailure?_eq_some_iff
     (raw : RawFlow Ty) (index : Nat) (block : RawBlock Ty)
     (reported : DecisionId) :
     duplicateDecisionFailure? raw index block = some reported ↔
-      ∃ (left right : BlockId) (args : List Var),
-        block.term = .choose reported left right args ∧
-        reported ∈
-          (raw.blocks.take index).filterMap (fun prior => prior.term.decision?) := by
-  cases termEq : block.term with
-  | ret | jump | perform => simp [duplicateDecisionFailure?, termEq]
-  | choose decision left right args =>
+      block.term.decision? = some reported ∧
+      reported ∈
+        (raw.blocks.take index).filterMap (fun prior => prior.term.decision?) := by
+  cases decisionEq : block.term.decision? with
+  | none => simp [duplicateDecisionFailure?, decisionEq]
+  | some decision =>
       by_cases member : decision ∈
           (raw.blocks.take index).filterMap (fun prior => prior.term.decision?)
-      · simp only [duplicateDecisionFailure?, termEq, member, ↓reduceIte, Option.some.injEq]
+      · simp only [duplicateDecisionFailure?, decisionEq, member, ↓reduceIte,
+          Option.some.injEq]
         constructor
-        · intro reportedEq
-          subst reported
-          exact ⟨left, right, args, rfl, member⟩
-        · rintro ⟨_, _, _, chooseEq, _⟩
-          exact (RawTerm.choose.inj chooseEq).1
-      · have noFailure : duplicateDecisionFailure? raw index block = none := by
-          simp [duplicateDecisionFailure?, termEq, member]
-        rw [noFailure]
-        constructor
-        · intro impossible
-          cases impossible
-        · rintro ⟨_, _, _, chooseEq, reportedMem⟩
-          obtain ⟨decisionEq, -, -, -⟩ := RawTerm.choose.inj chooseEq
-          subst decisionEq
-          exact (member reportedMem).elim
+        · rintro rfl
+          exact ⟨rfl, member⟩
+        · rintro ⟨same, _⟩
+          exact same
+      · simp only [duplicateDecisionFailure?, decisionEq, member, ↓reduceIte,
+          reduceCtorEq, false_iff, not_and, Option.some.injEq]
+        rintro rfl
+        exact fun contra => member contra
 
 private def orderFailure? (source : List α) (value : α → Nat)
     (index : Nat) (item : α) : Option α :=
@@ -751,52 +809,45 @@ private theorem danglingBlockFailure?_eq_some_iff
 
 private def unknownOperationFailure? (alphabet : FlowAlphabet Ty)
     (_ : Nat) (block : RawBlock Ty) : Option OperationId :=
-  match block.term with
-  | .perform operation _ _ _ =>
+  match block.term.operation? with
+  | some operation =>
       match alphabet.lookup operation with
       | none => some operation
       | some _ => none
-  | _ => none
+  | none => none
 
 private theorem unknownOperationFailure?_eq_some_iff
     (alphabet : FlowAlphabet Ty) (index : Nat) (block : RawBlock Ty)
     (reported : OperationId) :
     unknownOperationFailure? alphabet index block = some reported ↔
-      ∃ (request : Var) (target : BlockId) (args : List Var),
-        block.term = .perform reported request target args ∧
-        alphabet.lookup reported = none := by
-  cases termEq : block.term with
-  | ret | jump | choose => simp [unknownOperationFailure?, termEq]
-  | perform operation request target args =>
+      block.term.operation? = some reported ∧
+      alphabet.lookup reported = none := by
+  cases operationEq : block.term.operation? with
+  | none => simp [unknownOperationFailure?, operationEq]
+  | some operation =>
       cases found : alphabet.lookup operation with
       | none =>
+          simp only [unknownOperationFailure?, operationEq, found, Option.some.injEq]
           constructor
-          · intro failure
-            simp [unknownOperationFailure?, termEq, found] at failure
-            subst reported
-            exact ⟨request, target, args, rfl, found⟩
-          · rintro ⟨_, _, _, sameTerm, unknown⟩
-            injection sameTerm with operationEq
-            subst operationEq
-            simp [unknownOperationFailure?, termEq, found]
+          · rintro rfl
+            exact ⟨rfl, found⟩
+          · rintro ⟨same, _⟩
+            exact same
       | some operationDef =>
-          constructor
-          · intro failure
-            simp [unknownOperationFailure?, termEq, found] at failure
-          · rintro ⟨_, _, _, sameTerm, unknown⟩
-            injection sameTerm with operationEq
-            subst operationEq
-            rw [found] at unknown
-            contradiction
+          simp only [unknownOperationFailure?, operationEq, found, reduceCtorEq,
+            false_iff, not_and, Option.some.injEq]
+          rintro rfl
+          rw [found]
+          simp
 
 private theorem unknownOperationFailure?_eq_none_iff
     (alphabet : FlowAlphabet Ty) (index : Nat) (block : RawBlock Ty) :
     unknownOperationFailure? alphabet index block = none ↔ OperationWF alphabet block := by
-  cases termEq : block.term with
-  | ret | jump | choose => simp [unknownOperationFailure?, OperationWF, termEq]
-  | perform operation request target args =>
+  cases operationEq : block.term.operation? with
+  | none => simp [unknownOperationFailure?, OperationWF, operationEq]
+  | some operation =>
       cases found : alphabet.lookup operation <;>
-        simp [unknownOperationFailure?, OperationWF, termEq, found]
+        simp [unknownOperationFailure?, OperationWF, operationEq, found]
 
 /-! ## Operand typing (`termTypeMismatch`) -/
 
@@ -811,6 +862,12 @@ private def operandFailure? [DecidableEq Ty]
           else some (.typeMismatch raw.resultTy actual)
       | none => none
   | .perform operation request _ _ =>
+      match alphabet.lookup operation, block.params[request.index]? with
+      | some operationDef, some actual =>
+          if actual = alphabet.requestTy operationDef then none
+          else some (.typeMismatch (alphabet.requestTy operationDef) actual)
+      | _, _ => none
+  | .performCatch operation request _ _ _ _ =>
       match alphabet.lookup operation, block.params[request.index]? with
       | some operationDef, some actual =>
           if actual = alphabet.requestTy operationDef then none
@@ -837,6 +894,7 @@ private theorem operandFailure?_eq_some_iff [DecidableEq Ty]
               exact .retTypeMismatch termEq typedEq typed
     | jump target args => simp [operandFailure?, termEq] at failure
     | choose decision left right args => simp [operandFailure?, termEq] at failure
+    | branch test site onTrue onFalse args => simp [operandFailure?, termEq] at failure
     | perform operation request target args =>
         cases operationEq : alphabet.lookup operation with
         | none => simp [operandFailure?, termEq, operationEq] at failure
@@ -849,11 +907,25 @@ private theorem operandFailure?_eq_some_iff [DecidableEq Ty]
                 · simp [operandFailure?, termEq, operationEq, typedEq, typed] at failure
                   subst payload
                   exact .performRequestTypeMismatch termEq operationEq typedEq typed
+    | performCatch operation request target args onError errorArgs =>
+        cases operationEq : alphabet.lookup operation with
+        | none => simp [operandFailure?, termEq, operationEq] at failure
+        | some operationDef =>
+            cases typedEq : block.params[request.index]? with
+            | none => simp [operandFailure?, termEq, operationEq, typedEq] at failure
+            | some actual =>
+                by_cases typed : actual = alphabet.requestTy operationDef
+                · simp [operandFailure?, termEq, operationEq, typedEq, typed] at failure
+                · simp [operandFailure?, termEq, operationEq, typedEq, typed] at failure
+                  subst payload
+                  exact .performCatchRequestTypeMismatch termEq operationEq typedEq typed
   · intro valid
     cases valid with
     | retTypeMismatch term typed mismatch =>
         simp [operandFailure?, term, typed, mismatch]
     | performRequestTypeMismatch term known typed mismatch =>
+        simp [operandFailure?, term, known, typed, mismatch]
+    | performCatchRequestTypeMismatch term known typed mismatch =>
         simp [operandFailure?, term, known, typed, mismatch]
 
 private theorem operandFailure?_eq_none_iff [DecidableEq Ty]
@@ -870,6 +942,7 @@ private theorem operandFailure?_eq_none_iff [DecidableEq Ty]
             simp [operandFailure?, OperandsWF, termEq, typedEq, typed]
   | jump target args => simp [operandFailure?, OperandsWF, termEq]
   | choose decision left right args => simp [operandFailure?, OperandsWF, termEq]
+  | branch test site onTrue onFalse args => simp [operandFailure?, OperandsWF, termEq]
   | perform operation request target args =>
       cases operationEq : alphabet.lookup operation with
       | none =>
@@ -881,6 +954,66 @@ private theorem operandFailure?_eq_none_iff [DecidableEq Ty]
           | some actual =>
               by_cases typed : actual = alphabet.requestTy operationDef <;>
                 simp [operandFailure?, OperandsWF, termEq, operationEq, typedEq, typed]
+  | performCatch operation request target args onError errorArgs =>
+      cases operationEq : alphabet.lookup operation with
+      | none =>
+          cases typedEq : block.params[request.index]? <;>
+            simp [operandFailure?, OperandsWF, termEq, operationEq, typedEq]
+      | some operationDef =>
+          cases typedEq : block.params[request.index]? with
+          | none => simp [operandFailure?, OperandsWF, termEq, operationEq, typedEq]
+          | some actual =>
+              by_cases typed : actual = alphabet.requestTy operationDef <;>
+                simp [operandFailure?, OperandsWF, termEq, operationEq, typedEq, typed]
+
+/-! ## Branch-test typing (`branchTestType`, Flow v3) -/
+
+private def branchFailure? [DecidableEq Ty]
+    (alphabet : FlowAlphabet Ty) (block : RawBlock Ty) : Option (DiagnosticPayload Ty) :=
+  match block.term with
+  | .branch test _ _ _ _ =>
+      match block.params[test.index]? with
+      | some actual =>
+          if actual = alphabet.boolTy then none
+          else some (.typeMismatch alphabet.boolTy actual)
+      | none => none
+  | _ => none
+
+private theorem branchFailure?_eq_some_iff [DecidableEq Ty]
+    (alphabet : FlowAlphabet Ty) (block : RawBlock Ty) (payload : DiagnosticPayload Ty) :
+    branchFailure? alphabet block = some payload ↔
+      BranchFailureValid alphabet block payload := by
+  constructor
+  · intro failure
+    cases termEq : block.term with
+    | ret | jump | perform | choose | performCatch =>
+        simp [branchFailure?, termEq] at failure
+    | branch test site onTrue onFalse args =>
+        cases typedEq : block.params[test.index]? with
+        | none => simp [branchFailure?, termEq, typedEq] at failure
+        | some actual =>
+            by_cases typed : actual = alphabet.boolTy
+            · simp [branchFailure?, termEq, typedEq, typed] at failure
+            · simp [branchFailure?, termEq, typedEq, typed] at failure
+              subst payload
+              exact .testTypeMismatch termEq typedEq typed
+  · intro valid
+    cases valid with
+    | testTypeMismatch term typed mismatch =>
+        simp [branchFailure?, term, typed, mismatch]
+
+private theorem branchFailure?_eq_none_iff [DecidableEq Ty]
+    (alphabet : FlowAlphabet Ty) (block : RawBlock Ty) :
+    branchFailure? alphabet block = none ↔ BranchTestWF alphabet block := by
+  cases termEq : block.term with
+  | ret | jump | perform | choose | performCatch =>
+      simp [branchFailure?, BranchTestWF, termEq]
+  | branch test site onTrue onFalse args =>
+      cases typedEq : block.params[test.index]? with
+      | none => simp [branchFailure?, BranchTestWF, termEq, typedEq]
+      | some actual =>
+          by_cases typed : actual = alphabet.boolTy <;>
+            simp [branchFailure?, BranchTestWF, termEq, typedEq, typed]
 
 /-! ## Variable range (`unknownVariable`) -/
 
@@ -952,24 +1085,24 @@ private theorem variableBlockFailure?_eq_none_iff (index : Nat) (block : RawBloc
 /-! ## Successor arity (`argumentArity`) -/
 
 private def arityFailure? (raw : RawFlow Ty) (block : RawBlock Ty)
-    (_ : Nat) (target : BlockId) : Option Nat :=
+    (edge : Nat) (target : BlockId) : Option Nat :=
   match lookupBlock raw target with
   | none => none
   | some targetBlock =>
-      if targetBlock.params.length = block.term.arity then none
+      if targetBlock.params.length = block.term.arityAt edge then none
       else some targetBlock.params.length
 
 private theorem arityFailure?_eq_some_iff (raw : RawFlow Ty) (block : RawBlock Ty)
-    (index : Nat) (target : BlockId) (reported : Nat) :
-    arityFailure? raw block index target = some reported ↔
+    (edge : Nat) (target : BlockId) (reported : Nat) :
+    arityFailure? raw block edge target = some reported ↔
       ∃ targetBlock : RawBlock Ty,
         lookupBlock raw target = some targetBlock ∧
         targetBlock.params.length = reported ∧
-        reported ≠ block.term.arity := by
+        reported ≠ block.term.arityAt edge := by
   cases found : lookupBlock raw target with
   | none => simp [arityFailure?, found]
   | some targetBlock =>
-      by_cases matched : targetBlock.params.length = block.term.arity
+      by_cases matched : targetBlock.params.length = block.term.arityAt edge
       · constructor
         · intro failure
           simp [arityFailure?, found, matched] at failure
@@ -991,11 +1124,11 @@ private theorem arityBlockFailure?_eq_some_iff (raw : RawFlow Ty) (index : Nat)
     (block : RawBlock Ty) (witness : Nat × BlockId × Nat) :
     arityBlockFailure? raw index block = some witness ↔
       FirstFailureAt block.term.successors
-        (fun _ successor reported =>
+        (fun edgeIndex successor reported =>
           ∃ targetBlock : RawBlock Ty,
             lookupBlock raw successor = some targetBlock ∧
             targetBlock.params.length = reported ∧
-            reported ≠ block.term.arity)
+            reported ≠ block.term.arityAt edgeIndex)
         witness.1 witness.2.1 witness.2.2 := by
   rcases witness with ⟨successorIndex, target, declared⟩
   exact firstFailure?_eq_some_iff (arityFailure?_eq_some_iff raw block)
@@ -1006,21 +1139,20 @@ private theorem arityBlockFailure?_eq_none_iff (raw : RawFlow Ty) (index : Nat)
   unfold arityBlockFailure?
   rw [firstFailure?_eq_none_iff]
   constructor
-  · intro clear target targetMem
-    obtain ⟨successorIndex, targetAt⟩ := List.mem_iff_getElem?.mp targetMem
-    have checked := clear successorIndex target targetAt
+  · intro clear edge target targetAt
+    have checked := clear edge target targetAt
     cases found : lookupBlock raw target with
     | none => simp
     | some targetBlock =>
         simp only
         apply Decidable.byContradiction
         intro mismatch
-        have failed := (arityFailure?_eq_some_iff raw block successorIndex target
+        have failed := (arityFailure?_eq_some_iff raw block edge target
           targetBlock.params.length).mpr ⟨targetBlock, found, rfl, mismatch⟩
         rw [checked] at failed
         contradiction
-  · intro wf successorIndex target targetAt
-    have localWF := wf target (List.mem_iff_getElem?.mpr ⟨successorIndex, targetAt⟩)
+  · intro wf edge target targetAt
+    have localWF := wf edge target targetAt
     cases found : lookupBlock raw target with
     | none => simp [arityFailure?, found]
     | some targetBlock =>
@@ -1030,11 +1162,12 @@ private theorem arityBlockFailure?_eq_none_iff (raw : RawFlow Ty) (index : Nat)
 /-! ## Argument and answer typing (`argumentTypeMismatch`) -/
 
 private def slotFailure? [DecidableEq Ty] (alphabet : FlowAlphabet Ty) (raw : RawFlow Ty)
-    (block : RawBlock Ty) (target : BlockId) (slot : Nat) : Option (DiagnosticPayload Ty) :=
+    (block : RawBlock Ty) (edge : Nat) (target : BlockId) (slot : Nat) :
+    Option (DiagnosticPayload Ty) :=
   match lookupBlock raw target with
   | none => none
   | some targetBlock =>
-    match block.term.args[slot]? with
+    match (block.term.argsAt edge)[slot]? with
     | some argument =>
         match block.params[argument.index]?, targetBlock.params[slot]? with
         | some supplied, some declared =>
@@ -1050,19 +1183,36 @@ private def slotFailure? [DecidableEq Ty] (alphabet : FlowAlphabet Ty) (raw : Ra
                   else some (.typeMismatch (alphabet.answerTy operationDef) declared)
               | _, _ => none
             else none
+        | .performCatch operation _ valueTarget args errorTarget errorArgs =>
+            if edge = 1 then
+              if slot = errorArgs.length ∧ errorTarget = target then
+                match alphabet.lookup operation, targetBlock.params[slot]? with
+                | some operationDef, some declared =>
+                    if alphabet.errorTy operationDef = declared then none
+                    else some (.typeMismatch (alphabet.errorTy operationDef) declared)
+                | _, _ => none
+              else none
+            else
+              if slot = args.length ∧ valueTarget = target then
+                match alphabet.lookup operation, targetBlock.params[slot]? with
+                | some operationDef, some declared =>
+                    if alphabet.answerTy operationDef = declared then none
+                    else some (.typeMismatch (alphabet.answerTy operationDef) declared)
+                | _, _ => none
+              else none
         | _ => none
 
 private theorem slotFailure?_eq_some_iff [DecidableEq Ty] (alphabet : FlowAlphabet Ty)
-    (raw : RawFlow Ty) (block : RawBlock Ty) (target : BlockId) (slot : Nat)
+    (raw : RawFlow Ty) (block : RawBlock Ty) (edge : Nat) (target : BlockId) (slot : Nat)
     (payload : DiagnosticPayload Ty) :
-    slotFailure? alphabet raw block target slot = some payload ↔
-      ArgumentFailureValid alphabet raw block target slot payload := by
+    slotFailure? alphabet raw block edge target slot = some payload ↔
+      ArgumentFailureValid alphabet raw block edge target slot payload := by
   constructor
   · intro failure
     cases found : lookupBlock raw target with
     | none => simp [slotFailure?, found] at failure
     | some targetBlock =>
-        cases argumentAt : block.term.args[slot]? with
+        cases argumentAt : (block.term.argsAt edge)[slot]? with
         | some argument =>
             cases suppliedAt : block.params[argument.index]? with
             | none => simp [slotFailure?, found, argumentAt, suppliedAt] at failure
@@ -1081,6 +1231,7 @@ private theorem slotFailure?_eq_some_iff [DecidableEq Ty] (alphabet : FlowAlphab
             | ret value => simp [termEq] at failure
             | jump jumpTarget args => simp [termEq] at failure
             | choose decision left right args => simp [termEq] at failure
+            | branch test site onTrue onFalse args => simp [termEq] at failure
             | perform operation request performTarget args =>
                 by_cases answerSlot : slot = args.length ∧ performTarget = target
                 · obtain ⟨slotEq, targetEq⟩ := answerSlot
@@ -1098,25 +1249,73 @@ private theorem slotFailure?_eq_some_iff [DecidableEq Ty] (alphabet : FlowAlphab
                             subst payload
                             exact .answer termEq known found declaredAt typed
                 · simp [termEq, answerSlot] at failure
+            | performCatch operation request valueTarget args errorTarget errorArgs =>
+                by_cases errorEdge : edge = 1
+                · by_cases errorSlot : slot = errorArgs.length ∧ errorTarget = target
+                  · obtain ⟨slotEq, targetEq⟩ := errorSlot
+                    subst slotEq
+                    subst targetEq
+                    cases known : alphabet.lookup operation with
+                    | none => simp [termEq, errorEdge, known] at failure
+                    | some operationDef =>
+                        cases declaredAt : targetBlock.params[errorArgs.length]? with
+                        | none => simp [termEq, errorEdge, known, declaredAt] at failure
+                        | some declared =>
+                            by_cases typed : alphabet.errorTy operationDef = declared
+                            · simp [termEq, errorEdge, known, declaredAt, typed] at failure
+                            · simp [termEq, errorEdge, known, declaredAt, typed] at failure
+                              subst payload
+                              exact .catchError termEq errorEdge known found declaredAt typed
+                  · simp [termEq, errorEdge, errorSlot] at failure
+                · by_cases answerSlot : slot = args.length ∧ valueTarget = target
+                  · obtain ⟨slotEq, targetEq⟩ := answerSlot
+                    subst slotEq
+                    subst targetEq
+                    cases known : alphabet.lookup operation with
+                    | none => simp [termEq, errorEdge, known] at failure
+                    | some operationDef =>
+                        cases declaredAt : targetBlock.params[args.length]? with
+                        | none => simp [termEq, errorEdge, known, declaredAt] at failure
+                        | some declared =>
+                            by_cases typed : alphabet.answerTy operationDef = declared
+                            · simp [termEq, errorEdge, known, declaredAt, typed] at failure
+                            · simp [termEq, errorEdge, known, declaredAt, typed] at failure
+                              subst payload
+                              exact .catchAnswer termEq errorEdge known found declaredAt typed
+                  · simp [termEq, errorEdge, answerSlot] at failure
   · intro valid
     cases valid with
     | argument found argumentAt suppliedAt declaredAt mismatch =>
         simp [slotFailure?, found, argumentAt, suppliedAt, declaredAt, mismatch]
     | @answer operation request args operationDef targetBlock declared term known found declaredAt mismatch =>
-        have argumentAt : block.term.args[args.length]? = none := by
-          rw [term]
+        have argumentAt : (block.term.argsAt edge)[args.length]? = none := by
+          rw [term, RawTerm.argsAt_perform]
           exact List.getElem?_eq_none (Nat.le_refl _)
         simp only [slotFailure?, found, argumentAt]
         simp [term, known, declaredAt, mismatch]
+    | @catchAnswer operation request args onError errorArgs operationDef targetBlock declared
+        term valueEdge known found declaredAt mismatch =>
+        have argumentAt : (block.term.argsAt edge)[args.length]? = none := by
+          rw [term, RawTerm.argsAt_performCatch, if_neg valueEdge]
+          exact List.getElem?_eq_none (Nat.le_refl _)
+        simp only [slotFailure?, found, argumentAt]
+        simp [term, valueEdge, known, declaredAt, mismatch]
+    | @catchError operation request valueTarget args errorArgs operationDef targetBlock declared
+        term errorEdge known found declaredAt mismatch =>
+        have argumentAt : (block.term.argsAt edge)[errorArgs.length]? = none := by
+          rw [term, RawTerm.argsAt_performCatch, if_pos errorEdge]
+          exact List.getElem?_eq_none (Nat.le_refl _)
+        simp only [slotFailure?, found, argumentAt]
+        simp [term, errorEdge, known, declaredAt, mismatch]
 
 private theorem slotFailure?_eq_none_iff [DecidableEq Ty] (alphabet : FlowAlphabet Ty)
-    (raw : RawFlow Ty) (block : RawBlock Ty) (target : BlockId) (slot : Nat) :
-    slotFailure? alphabet raw block target slot = none ↔
-      SlotWF alphabet raw block target slot := by
+    (raw : RawFlow Ty) (block : RawBlock Ty) (edge : Nat) (target : BlockId) (slot : Nat) :
+    slotFailure? alphabet raw block edge target slot = none ↔
+      SlotWF alphabet raw block edge target slot := by
   cases found : lookupBlock raw target with
   | none => simp [slotFailure?, SlotWF, found]
   | some targetBlock =>
-      cases argumentAt : block.term.args[slot]? with
+      cases argumentAt : (block.term.argsAt edge)[slot]? with
       | some argument =>
           cases suppliedAt : block.params[argument.index]? with
           | none => simp [slotFailure?, SlotWF, found, argumentAt, suppliedAt]
@@ -1132,6 +1331,7 @@ private theorem slotFailure?_eq_none_iff [DecidableEq Ty] (alphabet : FlowAlphab
           | ret value => simp
           | jump jumpTarget args => simp
           | choose decision left right args => simp
+          | branch test site onTrue onFalse args => simp
           | perform operation request performTarget args =>
               by_cases slotEq : slot = args.length
               · by_cases targetEq : performTarget = target
@@ -1148,6 +1348,38 @@ private theorem slotFailure?_eq_none_iff [DecidableEq Ty] (alphabet : FlowAlphab
                 · subst slotEq
                   simp [targetEq]
               · simp [slotEq]
+          | performCatch operation request valueTarget args errorTarget errorArgs =>
+              by_cases errorEdge : edge = 1
+              · by_cases slotEq : slot = errorArgs.length
+                · by_cases targetEq : errorTarget = target
+                  · subst slotEq
+                    subst targetEq
+                    cases known : alphabet.lookup operation with
+                    | none => simp [errorEdge, known]
+                    | some operationDef =>
+                        cases targetBlock.params[errorArgs.length]? with
+                        | none => simp [errorEdge, known]
+                        | some declared =>
+                            by_cases typed : alphabet.errorTy operationDef = declared <;>
+                              simp [errorEdge, known, typed]
+                  · subst slotEq
+                    simp [errorEdge, targetEq]
+                · simp [errorEdge, slotEq]
+              · by_cases slotEq : slot = args.length
+                · by_cases targetEq : valueTarget = target
+                  · subst slotEq
+                    subst targetEq
+                    cases known : alphabet.lookup operation with
+                    | none => simp [errorEdge, known]
+                    | some operationDef =>
+                        cases targetBlock.params[args.length]? with
+                        | none => simp [errorEdge, known]
+                        | some declared =>
+                            by_cases typed : alphabet.answerTy operationDef = declared <;>
+                              simp [errorEdge, known, typed]
+                  · subst slotEq
+                    simp [errorEdge, targetEq]
+                · simp [errorEdge, slotEq]
 
 private theorem range_getElem?_eq {n index item : Nat}
     (at_ : (List.range n)[index]? = some item) : item = index := by
@@ -1159,62 +1391,67 @@ private theorem range_getElem?_eq {n index item : Nat}
   exact (Option.some.inj at_).symm
 
 private def edgeFailure? [DecidableEq Ty] (alphabet : FlowAlphabet Ty) (raw : RawFlow Ty)
-    (block : RawBlock Ty) (_ : Nat) (target : BlockId) : Option (Nat × DiagnosticPayload Ty) :=
-  match firstFailure? (List.range block.term.arity)
-      (fun _ slot => slotFailure? alphabet raw block target slot) with
+    (block : RawBlock Ty) (edge : Nat) (target : BlockId) :
+    Option (Nat × DiagnosticPayload Ty) :=
+  match firstFailure? (List.range (block.term.arityAt edge))
+      (fun _ slot => slotFailure? alphabet raw block edge target slot) with
   | none => none
   | some (position, _, payload) => some (position, payload)
 
 private theorem edgeFailure?_eq_some_iff [DecidableEq Ty] (alphabet : FlowAlphabet Ty)
-    (raw : RawFlow Ty) (block : RawBlock Ty) (index : Nat) (target : BlockId)
-    (edge : Nat × DiagnosticPayload Ty) :
-    edgeFailure? alphabet raw block index target = some edge ↔
-      FirstFailureAt (List.range block.term.arity)
-        (fun _ slot failure => ArgumentFailureValid alphabet raw block target slot failure)
-        edge.1 edge.1 edge.2 := by
+    (raw : RawFlow Ty) (block : RawBlock Ty) (edge : Nat) (target : BlockId)
+    (witness : Nat × DiagnosticPayload Ty) :
+    edgeFailure? alphabet raw block edge target = some witness ↔
+      FirstFailureAt (List.range (block.term.arityAt edge))
+        (fun _ slot failure => ArgumentFailureValid alphabet raw block edge target slot failure)
+        witness.1 witness.1 witness.2 := by
   constructor
   · intro found
     unfold edgeFailure? at found
-    cases innerEq : firstFailure? (List.range block.term.arity)
-        (fun _ slot => slotFailure? alphabet raw block target slot) with
+    cases innerEq : firstFailure? (List.range (block.term.arityAt edge))
+        (fun _ slot => slotFailure? alphabet raw block edge target slot) with
     | none => simp [innerEq] at found
     | some result =>
         rcases result with ⟨position, slot, payload⟩
         simp [innerEq] at found
         obtain ⟨rfl, rfl⟩ := found
         have valid := firstFailure?_eq_some_valid
-          (fun _ slot failure => slotFailure?_eq_some_iff alphabet raw block target slot failure)
+          (fun _ slot failure =>
+            slotFailure?_eq_some_iff alphabet raw block edge target slot failure)
           innerEq
         have slotEq : slot = position := range_getElem?_eq valid.source_at
         subst slotEq
         exact valid
   · intro valid
     unfold edgeFailure?
-    have innerEq : firstFailure? (List.range block.term.arity)
-        (fun _ slot => slotFailure? alphabet raw block target slot) =
-          some (edge.1, edge.1, edge.2) :=
+    have innerEq : firstFailure? (List.range (block.term.arityAt edge))
+        (fun _ slot => slotFailure? alphabet raw block edge target slot) =
+          some (witness.1, witness.1, witness.2) :=
       (firstFailure?_eq_some_iff
-        (fun _ slot failure => slotFailure?_eq_some_iff alphabet raw block target slot failure)).mpr
+        (fun _ slot failure =>
+          slotFailure?_eq_some_iff alphabet raw block edge target slot failure)).mpr
         valid
     simp [innerEq]
 
 private theorem edgeFailure?_eq_none_iff [DecidableEq Ty] (alphabet : FlowAlphabet Ty)
-    (raw : RawFlow Ty) (block : RawBlock Ty) (index : Nat) (target : BlockId) :
-    edgeFailure? alphabet raw block index target = none ↔
-      ∀ slot, slot ∈ List.range block.term.arity → SlotWF alphabet raw block target slot := by
+    (raw : RawFlow Ty) (block : RawBlock Ty) (edge : Nat) (target : BlockId) :
+    edgeFailure? alphabet raw block edge target = none ↔
+      ∀ slot, slot ∈ List.range (block.term.arityAt edge) →
+        SlotWF alphabet raw block edge target slot := by
   unfold edgeFailure?
-  cases innerEq : firstFailure? (List.range block.term.arity)
-      (fun _ slot => slotFailure? alphabet raw block target slot) with
+  cases innerEq : firstFailure? (List.range (block.term.arityAt edge))
+      (fun _ slot => slotFailure? alphabet raw block edge target slot) with
   | some result =>
       rcases result with ⟨position, slot, payload⟩
       simp only [reduceCtorEq, false_iff]
       intro wf
       have valid := firstFailure?_eq_some_valid
-        (fun _ slot failure => slotFailure?_eq_some_iff alphabet raw block target slot failure)
+        (fun _ slot failure =>
+          slotFailure?_eq_some_iff alphabet raw block edge target slot failure)
         innerEq
       have slotWF := wf slot (List.mem_iff_getElem?.mpr ⟨position, valid.source_at⟩)
-      have clear := (slotFailure?_eq_none_iff alphabet raw block target slot).mpr slotWF
-      have failed := (slotFailure?_eq_some_iff alphabet raw block target slot payload).mpr
+      have clear := (slotFailure?_eq_none_iff alphabet raw block edge target slot).mpr slotWF
+      have failed := (slotFailure?_eq_some_iff alphabet raw block edge target slot payload).mpr
         valid.fails_at
       rw [clear] at failed
       contradiction
@@ -1223,7 +1460,7 @@ private theorem edgeFailure?_eq_none_iff [DecidableEq Ty] (alphabet : FlowAlphab
       intro slot slotMem
       obtain ⟨position, slotAt⟩ := List.mem_iff_getElem?.mp slotMem
       have clear := firstFailure?_eq_none_iff.mp innerEq position slot slotAt
-      exact (slotFailure?_eq_none_iff alphabet raw block target slot).mp clear
+      exact (slotFailure?_eq_none_iff alphabet raw block edge target slot).mp clear
 
 private def argumentBlockFailure? [DecidableEq Ty] (alphabet : FlowAlphabet Ty)
     (raw : RawFlow Ty) (_ : Nat) (block : RawBlock Ty) :
@@ -1235,10 +1472,10 @@ private theorem argumentBlockFailure?_eq_some_iff [DecidableEq Ty] (alphabet : F
     (witness : Nat × BlockId × (Nat × DiagnosticPayload Ty)) :
     argumentBlockFailure? alphabet raw index block = some witness ↔
       FirstFailureAt block.term.successors
-        (fun _ successor edge =>
-          FirstFailureAt (List.range block.term.arity)
+        (fun edgeIndex successor edge =>
+          FirstFailureAt (List.range (block.term.arityAt edgeIndex))
             (fun _ slot failure =>
-              ArgumentFailureValid alphabet raw block successor slot failure)
+              ArgumentFailureValid alphabet raw block edgeIndex successor slot failure)
             edge.1 edge.1 edge.2)
         witness.1 witness.2.1 witness.2.2 := by
   rcases witness with ⟨successorIndex, target, edge⟩
@@ -1251,13 +1488,12 @@ private theorem argumentBlockFailure?_eq_none_iff [DecidableEq Ty] (alphabet : F
   unfold argumentBlockFailure?
   rw [firstFailure?_eq_none_iff]
   constructor
-  · intro clear target targetMem
-    obtain ⟨successorIndex, targetAt⟩ := List.mem_iff_getElem?.mp targetMem
-    exact (edgeFailure?_eq_none_iff alphabet raw block successorIndex target).mp
-      (clear successorIndex target targetAt)
-  · intro wf successorIndex target targetAt
-    exact (edgeFailure?_eq_none_iff alphabet raw block successorIndex target).mpr
-      (wf target (List.mem_iff_getElem?.mpr ⟨successorIndex, targetAt⟩))
+  · intro clear edge target targetAt
+    exact (edgeFailure?_eq_none_iff alphabet raw block edge target).mp
+      (clear edge target targetAt)
+  · intro wf edge target targetAt
+    exact (edgeFailure?_eq_none_iff alphabet raw block edge target).mpr
+      (wf edge target targetAt)
 
 /-! ## The cycle clause (`unchosenCycle`) -/
 
@@ -1328,6 +1564,11 @@ private def clauseHoldsDecidable [DecidableEq Ty]
       letI : DecidablePred (OperandsWF alphabet raw) :=
         fun block => decidable_of_iff _ (operandFailure?_eq_none_iff alphabet raw block)
       infer_instance
+  | branchTestType =>
+      show Decidable (∀ block, block ∈ raw.blocks → BranchTestWF alphabet block)
+      letI : DecidablePred (BranchTestWF alphabet (Ty := Ty)) :=
+        fun block => decidable_of_iff _ (branchFailure?_eq_none_iff alphabet block)
+      infer_instance
   | unknownVariable =>
       show Decidable (∀ block, block ∈ raw.blocks → block.VarsWF)
       letI : DecidablePred (RawBlock.VarsWF (Ty := Ty)) :=
@@ -1392,12 +1633,7 @@ private def preciseFailure [DecidableEq Ty]
             apply filterMap_nodup_of_no_prefix_duplicate
             intro index block blockAt decision selected duplicate
             have checked := clear index block blockAt
-            cases termEq : block.term with
-            | ret | jump | perform => simp [RawTerm.decision?, termEq] at selected
-            | choose actual left right args =>
-                simp [RawTerm.decision?, termEq] at selected
-                subst decision
-                simp [duplicateDecisionFailure?, termEq, duplicate] at checked
+            simp [duplicateDecisionFailure?, selected, duplicate] at checked
           exact (refute noDuplicates).elim
       | some result =>
           rcases result with ⟨index, block, decision⟩
@@ -1604,6 +1840,24 @@ private def preciseFailure [DecidableEq Ty]
             (fun _ candidate failure =>
               operandFailure?_eq_some_iff alphabet raw candidate failure) found
           exact ⟨.term block.id, payload, .termTypeMismatch first⟩
+  | branchTestType =>
+      cases found : firstFailure? raw.blocks
+          (fun _ block => branchFailure? alphabet block) with
+      | none =>
+          have clear := firstFailure?_eq_none_iff.mp found
+          have allTyped : ∀ block, block ∈ raw.blocks →
+              BranchTestWF alphabet block := by
+            intro block blockMem
+            obtain ⟨index, blockAt⟩ := List.mem_iff_getElem?.mp blockMem
+            exact (branchFailure?_eq_none_iff alphabet block).mp
+              (clear index block blockAt)
+          exact (refute allTyped).elim
+      | some result =>
+          rcases result with ⟨index, block, payload⟩
+          have first := firstFailure?_eq_some_valid
+            (fun _ candidate failure =>
+              branchFailure?_eq_some_iff alphabet candidate failure) found
+          exact ⟨.term block.id, payload, .branchTestType first⟩
   | unknownVariable =>
       cases found : firstFailure? raw.blocks variableBlockFailure? with
       | none =>
@@ -1633,7 +1887,7 @@ private def preciseFailure [DecidableEq Ty]
           rcases result with ⟨blockIndex, block, witness⟩
           have first := firstFailure?_eq_some_valid
             (arityBlockFailure?_eq_some_iff raw) found
-          exact ⟨.successor block.id witness.1, .arity block.term.arity witness.2.2,
+          exact ⟨.successor block.id witness.1, .arity (block.term.arityAt witness.1) witness.2.2,
             .argumentArity first⟩
   | argumentTypeMismatch =>
       cases found : firstFailure? raw.blocks (argumentBlockFailure? alphabet raw) with
@@ -1743,7 +1997,7 @@ private theorem flowWF_iff_clauses [DecidableEq Ty]
     rcases idsWF_view raw |>.mp wf.ids with ⟨blockIds, blockOrder, decisions⟩
     rcases wf.roots with
       ⟨rootsNonempty, rootIds, rootOrder, entryRoot, rootsResolve⟩
-    rcases wf.terms with ⟨vars, arity, arguments, operands⟩
+    rcases wf.terms with ⟨vars, arity, arguments, operands, branchTests⟩
     cases clause with
     | alphabetMismatch => exact wf.alphabet
     | duplicateBlockId => exact blockIds
@@ -1758,6 +2012,7 @@ private theorem flowWF_iff_clauses [DecidableEq Ty]
     | unknownOperation => exact wf.operations
     | entryTypeMismatch => exact wf.entry
     | termTypeMismatch => exact operands
+    | branchTestType => exact branchTests
     | unknownVariable => exact vars
     | argumentArity => exact arity
     | argumentTypeMismatch => exact arguments
@@ -1781,7 +2036,7 @@ private theorem flowWF_iff_clauses [DecidableEq Ty]
       operations := holds .unknownOperation
       entry := holds .entryTypeMismatch
       terms := ⟨holds .unknownVariable, holds .argumentArity,
-        holds .argumentTypeMismatch, holds .termTypeMismatch⟩
+        holds .argumentTypeMismatch, holds .termTypeMismatch, holds .branchTestType⟩
       cycles := holds .unchosenCycle
     }
 
@@ -1809,7 +2064,7 @@ end FirstDiagnostic
 
 namespace Diagnostic
 
-/-- All seventeen independent checks pass exactly when the eight WF fields hold. -/
+/-- All eighteen independent checks pass exactly when the eight WF fields hold. -/
 theorem clause_all_complete [DecidableEq Ty]
     {alphabet : FlowAlphabet Ty} {raw : RawFlow Ty} :
     FlowWF alphabet raw ↔

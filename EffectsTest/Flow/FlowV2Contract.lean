@@ -255,6 +255,7 @@ example : scan = [
     .unknownOperation,
     .entryTypeMismatch,
     .termTypeMismatch,
+    .branchTestType,
     .unknownVariable,
     .argumentArity,
     .argumentTypeMismatch,
@@ -379,25 +380,25 @@ fails at `Var` rather than at the constructor's v1 arity. -/
 
 #check (@ArgumentFailureValid :
   {Ty : Type uTy} →
-  FlowAlphabet.{uTy, uOp} Ty → RawFlow Ty → RawBlock Ty → BlockId →
+  FlowAlphabet.{uTy, uOp} Ty → RawFlow Ty → RawBlock Ty → Nat → BlockId →
   Nat → DiagnosticPayload Ty → Prop)
 
 #check (@ArgumentFailureValid.argument :
   ∀ {Ty : Type uTy} {alphabet : FlowAlphabet.{uTy, uOp} Ty}
-      {raw : RawFlow Ty} {block : RawBlock Ty} {target : BlockId}
+      {raw : RawFlow Ty} {block : RawBlock Ty} {edge : Nat} {target : BlockId}
       {targetBlock : RawBlock Ty} {position : Nat} {argument : Var}
       {supplied declared : Ty},
     lookupBlock raw target = some targetBlock →
-    (RawTerm.args block.term)[position]? = some argument →
+    (RawTerm.argsAt block.term edge)[position]? = some argument →
     (RawBlock.params block)[argument.index]? = some supplied →
     (RawBlock.params targetBlock)[position]? = some declared →
     supplied ≠ declared →
-    ArgumentFailureValid alphabet raw block target position
+    ArgumentFailureValid alphabet raw block edge target position
       (.typeMismatch supplied declared))
 
 #check (@ArgumentFailureValid.answer :
   ∀ {Ty : Type uTy} {alphabet : FlowAlphabet.{uTy, uOp} Ty}
-      {raw : RawFlow Ty} {block : RawBlock Ty} {target : BlockId}
+      {raw : RawFlow Ty} {block : RawBlock Ty} {edge : Nat} {target : BlockId}
       {operation : OperationId} {request : Var} {args : List Var}
       {operationDef : alphabet.Op} {targetBlock : RawBlock Ty} {declared : Ty},
     block.term = .perform operation request target args →
@@ -405,7 +406,7 @@ fails at `Var` rather than at the constructor's v1 arity. -/
     lookupBlock raw target = some targetBlock →
     (RawBlock.params targetBlock)[args.length]? = some declared →
     alphabet.answerTy operationDef ≠ declared →
-    ArgumentFailureValid alphabet raw block target args.length
+    ArgumentFailureValid alphabet raw block edge target args.length
       (.typeMismatch (alphabet.answerTy operationDef) declared))
 
 /-! D4d: exact site, payload, and source order for every diagnostic. -/
@@ -443,10 +444,7 @@ fails at `Var` rather than at the constructor's v1 arity. -/
       {decision : DecisionId},
     FirstFailureAt raw.blocks
       (fun candidateIndex candidate reported =>
-        ∃ (left right : BlockId) (args : List Var),
-          candidate.term =
-            (RawTerm.choose : DecisionId → BlockId → BlockId → List Var → RawTerm)
-              reported left right args ∧
+        RawTerm.decision? candidate.term = some reported ∧
           reported ∈
             (raw.blocks.take candidateIndex).filterMap
               (fun prior => RawTerm.decision? prior.term))
@@ -549,8 +547,7 @@ fails at `Var` rather than at the constructor's v1 arity. -/
       {operation : OperationId},
     FirstFailureAt raw.blocks
       (fun _ candidate reported =>
-        ∃ (request : Var) (target : BlockId) (args : List Var),
-          candidate.term = .perform reported request target args ∧
+        RawTerm.operation? candidate.term = some reported ∧
           alphabet.lookup reported = none)
       index block operation →
     Diagnostic.Valid alphabet raw
@@ -625,17 +622,17 @@ fails at `Var` rather than at the constructor's v1 arity. -/
     FirstFailureAt raw.blocks
       (fun _ candidate witness =>
         FirstFailureAt candidate.term.successors
-          (fun _ successor reported =>
+          (fun edgeIndex successor reported =>
             ∃ targetBlock : RawBlock Ty,
               lookupBlock raw successor = some targetBlock ∧
               List.length (RawBlock.params targetBlock) = reported ∧
-              reported ≠ RawTerm.arity candidate.term)
+              reported ≠ RawTerm.arityAt candidate.term edgeIndex)
           witness.1 witness.2.1 witness.2.2)
       blockIndex block (successorIndex, target, declared) →
     Diagnostic.Valid alphabet raw
       { clause := .argumentArity
         site := .successor block.id successorIndex
-        payload := .arity (RawTerm.arity block.term) declared })
+        payload := .arity (RawTerm.arityAt block.term successorIndex) declared })
 
 #check (@Diagnostic.Valid.argumentTypeMismatch :
   ∀ {Ty : Type uTy} {alphabet : FlowAlphabet.{uTy, uOp} Ty}
@@ -645,10 +642,10 @@ fails at `Var` rather than at the constructor's v1 arity. -/
     FirstFailureAt raw.blocks
       (fun _ candidate witness =>
         FirstFailureAt candidate.term.successors
-          (fun _ successor edge =>
-            FirstFailureAt (List.range (RawTerm.arity candidate.term))
+          (fun edgeIndex successor edge =>
+            FirstFailureAt (List.range (RawTerm.arityAt candidate.term edgeIndex))
               (fun _ slot failure =>
-                ArgumentFailureValid alphabet raw candidate successor slot failure)
+                ArgumentFailureValid alphabet raw candidate edgeIndex successor slot failure)
               edge.1 edge.1 edge.2)
           witness.1 witness.2.1 witness.2.2)
       blockIndex block (successorIndex, target, (position, payload)) →
@@ -818,6 +815,8 @@ section Receipts
 inductive TyCode where
   | nat
   | unit
+  /-- Flow v3: the spelling `FlowAlphabet.boolTy` names. -/
+  | bool
 deriving DecidableEq, Repr
 
 inductive ExampleOp where
@@ -849,6 +848,8 @@ def ExampleAlphabet : FlowAlphabet TyCode where
   answerTy
     | .get => .nat
     | .put => .unit
+  errorTy _ := .unit
+  boolTy := .bool
   lookup_operationId := by
     intro operation
     cases operation <;> rfl
