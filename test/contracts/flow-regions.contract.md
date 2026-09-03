@@ -1,5 +1,9 @@
 # Contract: regions over first-order flows (Effects v0.5.0)
 
+Amended v0.8.0: the `performCatch` ruling below, `acquireRelease` on an
+unknown release (`EF-FLOW-CE-009`), and `RegionWF` as a clause structure with
+`regionWF_iff_check`.
+
 Light ceremony (operator ruling D2; the Flow v2 surface of
 `flow-v2.contract.md` is not touched). Module: `Effects/Flow/Region.lean`.
 
@@ -28,9 +32,29 @@ block's label), `enterParent`, `enterBody`, `acquireOutside`, `acquireRelease`
 ## Semantics pinned here (the runner is lean4-effect4's)
 
 A `leave` closes the innermost region with a value and runs its registered
-releases innermost-first with that closing exit; a failure inside a region
-closes it and every enclosing region with the failure; a `ret` is only
-allowed outside every region. Attacks `EF-FLOW-CE-004..006`.
+releases innermost-first with that closing exit; an *uncaught* failure inside
+a region closes it and every enclosing region with the failure; a `ret` is
+only allowed outside every region. Attacks `EF-FLOW-CE-004..006`.
+
+A `performCatch` (Flow v3, `flow-v3.contract.md`) is the exception to the
+failure rule: its failure is *caught*, so it does not unwind. `EF-FLOW-CE-007`
+is the attack that pinned the distinction, and `successorLabel` is what
+enforces it — a `performCatch`'s failure edge is a declared successor like any
+other and must carry the block's own region label.
+
+### Ruling: catch-and-unwind is a non-goal (v0.8.0)
+
+A catch whose handler runs *after* the enclosing region has closed and its
+releases have run has no spelling in this layer, and is not a planned v0.9
+terminator. `successorLabel` over both edges of a `performCatch` is a stated
+rule, not an accident of the label check: a catch is lexically inside its
+region. The unwind-then-handle shape is already a composition here — catch
+inside the region, then `leave` — and the only piece it cannot spell, closing
+a region *with* a failure so that enclosing regions unwind too, is
+uncaught-failure semantics, which the runner owns and which no terminator in
+this carrier names. Were a consumer to want it, it would be a `RegionRow`
+change (a failure continuation beside `continue_`) in a new packet, not a
+terminator.
 
 ## Acceptance
 

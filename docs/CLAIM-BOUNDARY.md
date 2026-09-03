@@ -122,9 +122,12 @@ packet (`test/contracts/flow-v2.contract.md`, superseding the v1
 `flow-admission` packet moved here in v0.2.0). A block now declares a
 parameter list; a terminator names its operands by position (`Var`); `jump`
 and `choose` pass argument lists; `perform` passes its arguments plus the
-operation's answer. Admission has seventeen ordered clauses: the thirteen v1
-clauses (operand typing is now `termTypeMismatch`) and `unknownVariable`,
-`argumentArity`, `argumentTypeMismatch`, `unchosenCycle`. The last is the one
+operation's answer. Admission has seventeen ordered clauses *at this bump*:
+the thirteen v1 clauses (operand typing is now `termTypeMismatch`) and
+`unknownVariable`, `argumentArity`, `argumentTypeMismatch`, `unchosenCycle`.
+(v0.7.0 makes it eighteen and v0.8.0 nineteen; the live count is in the
+v0.8.0 section below and the live pin is
+`EffectsTest/Flow/FlowV3Contract.lean`.) The last is the one
 global clause: every cycle of the successor graph passes through a `choose`
 (`CyclesWF`), decided by the kernel-computable `cyclesChoose` with its law
 `cyclesChoose_iff`, so a finite decision tape bounds every run of an admitted

@@ -1,6 +1,18 @@
 # Flow v2 contract packet
 
-Status: FROZEN / RED, breaker-authored 2026-09-02
+Status: **SUPERSEDED by `test/contracts/flow-v3.contract.md` (Effects v0.7.0).**
+Originally FROZEN / RED, breaker-authored 2026-09-02; landed green at v0.4.0.
+
+This packet is retained as the record of the v2 freeze. Where it and the v3
+packet disagree, **v3 is the live text**: the terminator list (D2), the two
+edge clauses of D3, the `ArgumentFailureValid` relation, and the clause count
+and `scan` order of D4 all moved in v3, and v3 owns the executable `scan` pin
+(`EffectsTest/Flow/FlowV3Contract.lean`, `rfl` on the eighteen-clause list
+plus `#guard scan.length == 18`). The counts below — "seventeen ordered
+admission clauses", "the thirteen v1 clauses" — were true of v2 and are false
+of the tree; they are left in place because a superseded packet is a record,
+not a specification. Every other frozen declaration of this packet stands, and
+its counterexample rows `EF-FLOW-CE-001..003` are retained with their sites.
 
 Implementation fence: `Effects/Flow/{Block,Raw,Admission,Checked}.lean`
 

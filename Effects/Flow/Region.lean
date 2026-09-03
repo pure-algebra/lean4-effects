@@ -7,16 +7,34 @@ A region is a scope: `enter` opens it, `acquire` performs an operation inside
 it and registers a release for the answer, `leave` closes it with a value and
 runs the registered releases innermost-first with the closing exit, after
 which control continues at the region's `continue_` block with that value.
-A failure inside a region closes it, and every enclosing region, with the
-failure. Nothing here says how a host does this: the runner and its host
-agreement live in lean4-effect4 (`docs/TRACE-DAG.md`).
+An *uncaught* failure inside a region closes it, and every enclosing region,
+with the failure. A `performCatch` (Flow v3) is the exception: its failure is
+*caught*, so it does not unwind. Nothing here says how a host does either:
+the runner and its host agreement live in lean4-effect4
+(`docs/TRACE-DAG.md`), and `EF-FLOW-CE-007` is the attack that pinned the
+distinction.
+
+Catch-and-unwind — a catch whose handler runs *after* the region has closed
+and its releases have run — is a **non-goal**, not a deferred terminator.
+`successorLabel` below requires every declared successor of a block to carry
+the block's own region label, and a `performCatch`'s failure edge is a
+declared successor like any other, so a catch is lexically inside its region
+and a caught failure continues there. That is a stated rule, not a side
+effect of the label check. The unwind-then-handle shape is already a
+composition in this carrier — catch inside the region, then `leave` — and the
+one piece it cannot spell, closing a region *with* a failure, is
+uncaught-failure semantics, which the runner owns and which no terminator
+here names. Should a consumer ever want it, it is a `RegionRow` change (a
+failure continuation beside `continue_`), not a new terminator, and it is a
+new packet.
 
 The region layer erases to a Flow v2 graph (`RegionFlow.erase`): `enter` and
-`leave` become jumps, `acquire` becomes a `perform`. The seventeen v2 clauses
-check the erased graph (identity, references, types, cycles), and the region
-clauses below check what erasure forgets: region ownership of every block,
-the shape of every `enter`, `acquire` and `leave`, and that a `ret` never
-skips a region. The frozen v2 surface is not touched.
+`leave` become jumps, `acquire` becomes a `perform`. The eighteen v3
+admission clauses check the erased graph (identity, references, types,
+cycles), and the region clauses below check what erasure forgets: region
+ownership of every block, the shape of every `enter`, `acquire` and `leave`,
+and that a `ret` never skips a region. The frozen flow surface is not
+touched.
 -/
 
 namespace Effects

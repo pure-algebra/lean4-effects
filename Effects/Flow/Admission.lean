@@ -7,7 +7,8 @@ This module owns the closed admission boundary. Diagnostics are produced from
 one clause-indexed checker, and the checked carrier is co-located here so its
 constructor can remain genuinely private while `admit` can still construct it.
 
-Flow v2 (`test/contracts/flow-v2.contract.md`): seventeen ordered clauses over
+Flow v2 (`test/contracts/flow-v2.contract.md`, superseded by v3): seventeen
+ordered clauses over
 blocks with parameter lists. Operand typing is `termTypeMismatch`; edge typing
 is `argumentArity` then `argumentTypeMismatch` (positional, per successor);
 variable range is `unknownVariable`; the global cycle clause is

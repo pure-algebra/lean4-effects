@@ -1,5 +1,6 @@
 /-
-Contract packet: `test/contracts/flow-v2.contract.md`
+Contract packet: `test/contracts/flow-v2.contract.md`, **superseded by**
+`test/contracts/flow-v3.contract.md`.
 
 Breaker-owned red battery for Flow v2 (Effects v0.4.0). The implementation
 phase must not edit this file. It is red until the parameterised carrier
@@ -217,7 +218,10 @@ section SurfaceSnapshot
       {raw : RawFlow Ty} (_wf : FlowWF alphabet raw) {target : BlockId},
     Reachable raw target → ∃ block, lookupBlock raw target = some block)
 
-/-! D4: seventeen ordered clauses, sites, payloads, and exact witnesses. -/
+/-! D4: the ordered clauses, sites, payloads, and exact witnesses. The clause
+*list* — its order, its length, and the constructors it contains — is v3's
+pin and lives in `EffectsTest/Flow/FlowV3Contract.lean`; this section pins only
+that each retained v2 constructor still exists with its v2 spelling. -/
 
 #check (@AdmissionClause.alphabetMismatch : AdmissionClause)
 #check (@AdmissionClause.duplicateBlockId : AdmissionClause)
@@ -240,8 +244,18 @@ section SurfaceSnapshot
 
 #check (@scan : List AdmissionClause)
 
-/-- The fixed scan order: the thirteen v1 clauses, then the four new ones. -/
-example : scan = [
+/-! The `scan` order and length are pinned once, by the v3 battery
+(`EffectsTest/Flow/FlowV3Contract.lean`: `rfl` on the full list, and
+`#guard scan.length == 18`). The v2 copy of that pin was rewritten in place by
+the v3 landing and left contradicting its own docstring, so it is gone: two
+batteries cannot own one list. What v2 still owns is that each of its own
+clauses is a constructor of `AdmissionClause`, pinned by the ascriptions
+above, and that its relative order is unchanged, pinned here by the retained
+v2 subsequence. -/
+
+/-- Every v2 clause, in its v2 relative order, is a subsequence of `scan`:
+v3 inserted clauses, it did not reorder or drop any. -/
+example : ([
     .alphabetMismatch,
     .duplicateBlockId,
     .duplicateDecisionId,
@@ -255,12 +269,11 @@ example : scan = [
     .unknownOperation,
     .entryTypeMismatch,
     .termTypeMismatch,
-    .branchTestType,
     .unknownVariable,
     .argumentArity,
     .argumentTypeMismatch,
     .unchosenCycle
-  ] := rfl
+  ] : List AdmissionClause).Sublist scan := by decide
 
 #check (@CheckSite.flow : CheckSite)
 #check (@CheckSite.block : Nat → CheckSite)
