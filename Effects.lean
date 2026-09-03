@@ -8,8 +8,6 @@ import Effects.Algebra.Sum
 import Effects.Algebra.Universal
 import Effects.Algebra.Handler.Composition
 import Effects.Algebra.Handler.Category
-import Effects.Morphism
-import Effects.Transport
 import Effects.Family
 import Effects.Flow.Block
 import Effects.Flow.Alphabet
@@ -25,8 +23,9 @@ import Effects.Trace
 Standalone Lean library for a generic effect algebra: indexed signatures,
 well-founded free programs, handlers, signature sums, model morphisms,
 interpretation, and the universal laws (`Effects/Algebra`, frozen at v0.1.0);
-signature morphisms, monad-homomorphism transport, and named-operation
-families with the first-order alphabet embedding (v0.2.0); and the generic
+named-operation families with the first-order alphabet embedding (v0.2.0,
+with signature morphisms and monad-homomorphism transport moved to the opt-in
+`Effects.Experimental` root at v0.8.0); and the generic
 first-order flow with its checked admission (`Effects/Flow`, moved from
 lean4-effect4 at v0.2.0). It has no Lake dependencies and no knowledge of any
 host runtime. `docs/CLAIM-BOUNDARY.md` states what the theorems claim and what

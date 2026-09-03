@@ -24,6 +24,9 @@ of the 215 compiled constants.
 | A9 towers | `through` collapses an implementation; associative and unital across signatures; a monoid on endomorphisms | `interpret_through`, `interpret_through_of_equations`, `Handler.through_assoc`, `Handler.through_identity_right`, `Handler.through_identity_left`, `Handler.through_endomorphism_monoid` | `E4-ALG-CE-004` |
 | A10 universes | independent operation and answer universes; results in the answer universe; no implicit lift | the declared universe signatures, frozen by `EffectsTest/Algebra/ExtractionContract.lean` | `E4-ALG-CE-005`, `E4-ALG-CE-008` |
 
-Open edges: none within this package. Explicit signature maps, state
-transport through a tower, and any universe lift are deliberately outside
-it (`docs/CLAIM-BOUNDARY.md`, "Where the rest lives").
+Open edges: none within this package. Explicit signature maps and state
+transport through a tower are outside this graph: they live in the opt-in
+`Effects.Experimental` root, with receipts but no contract and no battery, and
+the ruling that put them there is stated once in `docs/CLAIM-BOUNDARY.md`,
+section "v0.8.0". Any universe lift is outside the package entirely
+(`docs/CLAIM-BOUNDARY.md`, "Where the rest lives").

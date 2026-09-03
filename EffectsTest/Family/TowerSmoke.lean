@@ -1,5 +1,5 @@
-import Effects.Morphism
-import Effects.Transport
+import Effects.Experimental.Morphism
+import Effects.Experimental.Transport
 import Effects.Family
 
 /-! Executable smoke: the Cell-over-Jobs tower in family form, reduced by `rfl`. -/

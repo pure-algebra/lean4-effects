@@ -60,7 +60,7 @@ is no behavioural quotient.
 | Concern | Owner |
 | --- | --- |
 | Operation laws and observation relations for a particular standard | that standard's library, stated over its interpretation |
-| State transport through a tower, explicit signature maps | a later `Effects` packet, opened only by a typed consumer example (S6) |
+| State transport through a tower, explicit signature maps | `Effects.Experimental`, an opt-in root with receipts but no contract; the ruling is in "v0.8.0" below |
 | First-order flow, relational semantics, logic, realizers, targets | lean4-effect4 and the standard libraries |
 | Host admission and conformance | the consumer's host-profile records |
 
@@ -80,10 +80,12 @@ already uses; batteries follow):
 
 - `Effects/Morphism.lean`: `Signature.Hom`, `Program.map`, `Handler.pull`,
   `interpret_map`, the sum isomorphisms and `Signature.empty`. The row normal
-  form of a requirement set.
+  form of a requirement set. **Moved at v0.8.0** to
+  `Effects/Experimental/Morphism.lean`; see "v0.8.0" below for the ruling.
 - `Effects/Transport.lean`: `MonadHom`, `Handler.mapHom`, `interpret_mapHom`,
   `interpretHom`, `through = mapHom (interpretHom ·)` by `rfl`, `MonadHom.stateT`.
-  State transport through a tower.
+  State transport through a tower. **Moved at v0.8.0** to
+  `Effects/Experimental/Transport.lean`; see "v0.8.0" below.
 - `Effects/Family.lean`: `Family`, `Family.toSignature`, `Family.Service` and
   its round trip with `Handler`, `Alphabet` and `Alphabet.toFamily`. The
   first-order carrier's embedding that the boundary above promised downstream.
@@ -248,3 +250,110 @@ boolean semantics for `boolTy`, which is a spelling in the consumer's own
 `Ty` with no inhabitant count and no exhaustiveness claim for the two
 successors. The nine algebra modules, the trace alphabet, and the v0.5.0
 region surface are unchanged.
+
+## v0.8.0: the consumer boundary
+
+A release about what the package *shows*, not about a new semantic layer. It
+answers findings #36, #38, #39, #40, #42, #43, #44, #45, #46, #48 and #49 of
+lean4-effect4's `docs/research/2026-09-03-survey-lean-core.md`. Packet:
+`test/contracts/effects-boundary.contract.md`; battery
+`EffectsTest/Flow/BoundaryContract.lean`; attacks `EF-FLOW-CE-009` and
+`EF-FLOW-CE-010`; full downstream migration in `docs/RELEASE-v0.8.0.md`.
+
+### One new claim
+
+`FlowAlphabet.errorTy` is `Op → Option Ty`, and admission gains a nineteenth
+ordered clause, `catchUnfailable`: a `performCatch` names an operation whose
+declared error type is `some`. It sits between `branchTestType` and
+`unknownVariable`. `TermsWF` is six-fold (`CatchableWF` is the sixth), `FlowWF`
+keeps its eight fields, `SlotWF`'s error arm compares only when `errorTy` is
+`some`, and every retained theorem holds with its proposition, including
+`clause_all_complete` over nineteen clauses.
+
+This is the repair for a claim that was weaker than it read. The v0.7.0
+`errorTy : Op → Ty` asked an operation that cannot fail to declare "the
+alphabet's own empty spelling" — a convention `Ty`, a code type with no
+emptiness predicate, cannot express, and one an alphabet could satisfy with
+`errorTy op = answerTy op`. `EF-FLOW-CE-010` is the witness.
+
+Still not claimed, exactly as in v0.7.0: no error algebra. `errorTy` is one
+type per operation, never read except to compare; `catchUnfailable` asks only
+whether there *is* one. No empty type, no error sum, no subtyping, no relation
+to a host error, and no execution semantics for a catch.
+
+### One clause repaired
+
+`acquireRelease` now fires whenever `alphabet.lookup release = none`, whatever
+the acquired operation is (`EF-FLOW-CE-009`). Erasure drops the release, so no
+v2 clause can see it; keying the arm on the acquired operation let an unknown
+release surface only on a second round. `admitRegions` admits exactly what it
+admitted before.
+
+### `RegionWF` is a structure
+
+Fourteen fields, one per `RegionClause`, with `regionWF_iff_check` proving the
+checker decides exactly them — the region layer's counterpart of
+`flowWF_iff_clauses`. It used to be `flow.check alphabet = none`, a statement
+about a program rather than about a flow. `CheckedRegionFlow` and
+`admitRegions` are unchanged in type.
+
+### Ruling: `Effects.Experimental`
+
+`Effects/Morphism.lean` and `Effects/Transport.lean` move to
+`Effects/Experimental/{Morphism,Transport}.lean` behind
+`Effects/Experimental.lean`, a root that **`import Effects` does not pull in**.
+This is the one place the ruling is stated; `Effects/Experimental.lean`,
+`docs/ALGEBRA-DAG.md` and the v0.2.0 section above point here and do not
+restate it.
+
+What "experimental" commits this package to:
+
+- The declarations keep the `Effects` namespace, so `handler.mapHom`,
+  `handler.pull` and `program.map` still resolve by dot notation. Only the
+  module path and the import changed.
+- They are inside the axiom ceiling like everything else, and
+  `EffectsTest/Experimental/AxiomReport.lean` is the receipt. A consumer who
+  opts in is not opting into a weaker trust boundary.
+- The trust gate reaches them: the test root imports the report, so the
+  module-closure check still covers both files.
+
+What it does not commit to:
+
+- **No frozen surface.** There is no contract packet and no battery. Names,
+  argument order and universes may change in a minor bump without a
+  supersession note, which is exactly what the other packets promise not to do.
+- **No claim beyond the stated theorems.** `interpret_map`, `Program.map_id`,
+  `Program.map_comp`, `interpret_mapHom` and `through_eq_mapHom` are what is
+  proved. Nothing here says a signature morphism preserves any operation law,
+  that a requirement row has a normal form, or that `MonadHom.stateT` is the
+  state transport a consumer's tower wants.
+
+They were stood up at v0.2.0 "ahead of their contract packets … batteries
+follow". The batteries did not follow, and three documents disagreed about
+whether the modules existed. The honest reading is that they are an unfinished
+generic packet with no library consumer, so they are labelled rather than
+quietly shipped as part of a frozen surface. Writing their contract and
+battery would retire the label and move them back.
+
+### Boundary changes with no new claim
+
+- `Effects/ListAux.lean` publishes `length_filter_ne` and
+  `length_le_of_nodup_subset`, generic in `α`. `RawFlow`'s saturation
+  scaffolding — `insertAll`, `expand`, `saturate`, `allSuccessors` and their
+  thirteen lemmas — becomes `private`, and `nodup_reachSet` and
+  `reachSet_length_lt_of_edge` are the public conclusions that replace it.
+- `reachableNoChoose_trans`, `lookupBlock_id`, `mem_blockIds_of_lookup` and
+  `FlowAlphabet.toAlphabet`/`toFamily` move up from lean4-effect4, which had
+  been declaring the last of them into this package's own root namespace.
+- `Diagnostic.diagnoseAll` reports every failing clause, with
+  `diagnoseAll_eq_nil_iff` and `diagnoseAll_valid`. `admit` is unchanged and
+  remains the boundary; this is a report, not a second admission path.
+- `RegionFlow.checkBlock.checkTerm` is gone: `checkTerm` is a named definition.
+  The `RegionWF` fields are the supported replacement for unfolding it.
+- Axiom receipts now cover Flow v3, the regions, `Family` and the experimental
+  root — twelve exported theorems that had none.
+- The library compiles with `autoImplicit` and `relaxedAutoImplicit` off, and
+  the axiom gate refuses the same trust tokens lean4-effect4's does.
+
+The nine algebra modules, the trace alphabet, and the flow v3 carrier apart
+from `errorTy` are unchanged.

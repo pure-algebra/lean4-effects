@@ -1,5 +1,5 @@
 import Effects.Trace
-import Effects.Transport
+import Effects.Experimental.Transport
 import EffectsTest.Family.TowerSmoke
 
 /-!
